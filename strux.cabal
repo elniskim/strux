@@ -35,7 +35,7 @@ license:            BSD-3-Clause
 license-file:       LICENSE
 
 -- The package author(s).
-author:             Matthew Elniski
+author:             Matthew Elniski, Danny Drobny
 
 -- An email address to which users can send suggestions, bug reports, and patches.
 maintainer:         MPECali123@gmail.com
@@ -67,7 +67,7 @@ executable strux
     -- other-extensions:
 
     -- Other library packages from which modules are imported.
-    build-depends:    base ^>=4.18.3.0
+    build-depends:    base ^>=4.18.3.0, text, containers
 
     -- Directories containing source files.
     hs-source-dirs:   app, src
