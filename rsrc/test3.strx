@@ -1,0 +1,7 @@
+# Testing variable declarations.
+
+global: int;
+
+def main() -> void {
+    local: int;
+}

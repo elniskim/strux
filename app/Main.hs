@@ -1,11 +1,11 @@
 module Main where
 
 import qualified Data.Text as T
-import Data.Char (ord, isLetter, isAlphaNum)
+import Data.Char (ord, isLetter, isAlphaNum, isNumber)
 import qualified Data.Set as Set
 
 opChars :: Set.Set Char
-opChars = Set.fromList ['.', '<', '>', '=', '+', '%', '-', '*', '/', '!', '&', '|', '[', ']', '(', ')', '{', '}', ';']
+opChars = Set.fromList ['<', '>', '=', '+', '%', '-', '*', '/', '!', '&', '|', '[', ']', '(', ')', '{', '}', ';']
 
 data FPToken
     = Word          { tokenText :: T.Text, tokenLine :: Int, tokenColumn :: Int }
@@ -34,6 +34,10 @@ firstPass input = go $ LexerState input 1 1
         go state@(LexerState text line column)
             | Nothing <- u
             = []
+
+            | Just(c,_) <- u
+            , inNumber c 
+            = let (token, rest) = T.span inNumber text in Word token line column : go (updateLexerState state token rest)
 
             | Just(c,_) <- u
             , wordStart c
@@ -67,6 +71,9 @@ updateLexerState state token newRemaining =
               update (LexerState r line col) char
                 | char == '\n' = LexerState r (line + 1) 1
                 | otherwise = LexerState r line (col + 1)
+
+inNumber :: Char -> Bool
+inNumber c = isNumber c || c == '.'
 
 wordStart :: Char -> Bool
 wordStart c = isLetter c || c == '_'

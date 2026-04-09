@@ -1,0 +1,8 @@
+# Testing built-in function calls.
+
+def main() -> void {
+    printInt(5);
+    printFloat(2.5);
+    printChar('a');
+    printStr("Hello, world!");
+}

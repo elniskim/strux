@@ -1,0 +1,7 @@
+# Testing assigning and outputting local variables
+
+def main() -> void {
+    local: int;
+    local = 5;
+    printInt(local);
+}

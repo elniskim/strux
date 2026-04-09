@@ -1,0 +1,8 @@
+# Testing assigning and outputting global variables.
+
+global: float;
+
+def main() -> void {
+    global = 4.2;
+    printFloat(global);
+}
