@@ -1,21 +1,23 @@
+{-# LANGUAGE OverloadedStrings #-}
 module Main where
 
 import qualified Data.Text as T
-import Data.Char (ord, isLetter, isAlphaNum, isNumber)
+import Data.Char (isLetter, isAlphaNum, isNumber, readLitChar)
 import qualified Data.Set as Set
 
 opChars :: Set.Set Char
-opChars = Set.fromList ['<', '>', '=', '+', '%', '-', '*', '/', '!', '&', '|', '[', ']', '(', ')', '{', '}', ';']
+opChars = Set.fromList ['<', '>', '=', '+', '%', '-', '*', '/', '!', '&', '|', '[', ']', '(', ')', '{', '}', ';', ':', ',']
 
 data FPToken
-    = Word          { tokenText :: T.Text, tokenLine :: Int, tokenColumn :: Int }
+    = WordToken     { tokenText :: T.Text, tokenLine :: Int, tokenColumn :: Int }
     | NumberLiteral { tokenText :: T.Text, tokenLine :: Int, tokenColumn :: Int }
     | StringLiteral { tokenText :: T.Text, tokenLine :: Int, tokenColumn :: Int }
     | CharLiteral   { tokenText :: T.Text, tokenLine :: Int, tokenColumn :: Int }
-    | Operators     { tokenText :: T.Text, tokenLine :: Int, tokenColumn :: Int }
-    | Comments      { tokenText :: T.Text, tokenLine :: Int, tokenColumn :: Int }
-    | Whitespace    { tokenText :: T.Text, tokenLine :: Int, tokenColumn :: Int }
+    | Operator      { tokenText :: T.Text, tokenLine :: Int, tokenColumn :: Int }
+    -- | Comments      { tokenText :: T.Text, tokenLine :: Int, tokenColumn :: Int }
+    -- | Whitespace    { tokenText :: T.Text, tokenLine :: Int, tokenColumn :: Int }
     deriving (Show)
+
 
 data LexerState = LexerState {
     remaining :: T.Text,
@@ -37,22 +39,26 @@ firstPass input = go $ LexerState input 1 1
 
             | Just(c,_) <- u
             , inNumber c 
-            = let (token, rest) = T.span inNumber text in Word token line column : go (updateLexerState state token rest)
+            = let (token, rest) = T.span inNumber text in NumberLiteral token line column : go (updateLexerState state token rest)
 
             | Just(c,_) <- u
             , wordStart c
-            = let (token, rest) = T.span inWord text in Word token line column : go (updateLexerState state token rest)
+            = let (token, rest) = T.span inWord text in WordToken token line column : go (updateLexerState state token rest)
 
             | Just(c,_) <- u
             , stringStart c
-            = let (token, rest) = munchString text in Word token line column : go (updateLexerState state token rest)
+            = let (token, rest) = munchString text in StringLiteral token line column : go (updateLexerState state token rest)
 
             | Just(c,_) <- u
             , charStart c
-            = let (token, rest) = munchChar text in Word token line column : go (updateLexerState state token rest)
+            = let (token, rest) = munchChar text in CharLiteral token line column : go (updateLexerState state token rest)
+
+            | Just(c,_) <- u 
+            , opStart c 
+            = let (token, rest) = T.span opStart text in Operator token line column : go (updateLexerState state token rest)
 
             | Just(c,_) <- u
-            , opStart c
+            , isWhitespace c
             = let (token, rest) = T.span opStart text in go (updateLexerState state token rest) -- Whitespace isn't a token.
 
             | Just(c,_) <- u 
@@ -100,7 +106,7 @@ munchString file =
 charStart :: Char -> Bool
 charStart c = c == '\''
 
--- Needs format checking on second pass. For SURE.
+-- Needs format checking on second pass. For SURE. Maybe replace with readLitChar?
 munchChar :: T.Text -> (T.Text, T.Text)
 munchChar file =
     let numChars = findLen (T.tail file) 0
@@ -114,7 +120,6 @@ munchChar file =
                 | otherwise = findLen (T.tail text) (numChars + 1)
                     where c = T.head text
 
-
 opStart :: Char -> Bool
 opStart c = Set.member c opChars
 
@@ -123,3 +128,119 @@ commentStart c = c == '#'
 
 isWhitespace :: Char -> Bool
 isWhitespace c = c `elem` [' ', '\n', '\t', '\r']
+
+
+
+
+
+data TokenType
+    = TokIdent T.Text
+    | TokIf
+    | TokElse   
+    | TokFor       
+    | TokWhile    
+    | TokDef 
+    | TokStruct 
+    | TokTrue
+    | TokFalse
+    | TokBreak 
+    | TokContinue 
+    | TokReturn 
+    | TokInt Int 
+    | TokFloat Float
+    | TokString T.Text
+    | TokChar Char
+    | TokPlus 
+    | TokMinus 
+    | TokMult 
+    | TokDiv 
+    | TokMod         
+    | TokEq          
+    | TokNEq         
+    | TokGT          
+    | TokGE          
+    | TokLT          
+    | TokLE          
+    | TokAssign      
+    | TokArrow       
+    | TokBitAnd      
+    | TokLogAnd      
+    | TokBitOr       
+    | TokNot 
+    | TokSqBra       
+    | TokSqKet       
+    | TokCrBra       
+    | TokCrKet       
+    | TokOpenParen   
+    | TokCloseParen  
+    | TokColon       
+    | TokSemi        
+    | TokComma       
+
+data SrcLoc = SrcLoc {
+    line :: !Int,
+    col  :: !Int
+} deriving (Show, Eq)
+
+data Token = Token {
+    token :: TokenType,
+    loc :: SrcLoc
+}
+
+secondPass :: [FPToken] -> [Token]
+secondPass = map disambiguate
+
+disambiguate :: FPToken -> Token
+disambiguate (WordToken text line col) = disambiguateWord text line col
+disambiguate (NumberLiteral text line col) = disambiguateNumber text line col 
+disambiguate (StringLiteral text line col) = disambiguateString text line col 
+disambiguate (CharLiteral text line col) = disambiguateChar text line col 
+disambiguate (Operator text line col) = disambiguateOperator text line col 
+
+disambiguateWord :: T.Text -> Int -> Int -> Token
+disambiguateWord text col line = 
+    let word = T.toLower text
+        tokType = case word of 
+            "if"       -> TokIf
+            "else"     -> TokElse
+            "for"      -> TokFor
+            "while"    -> TokWhile
+            "def"      -> TokDef
+            "struct"   -> TokStruct
+            "true"     -> TokTrue
+            "false"    -> TokFalse
+            "break"    -> TokBreak
+            "continue" -> TokContinue
+            "return"   -> TokReturn
+            _          -> TokIdent text
+        loc = SrcLoc col line
+    in Token tokType loc 
+
+disambiguateNumber :: T.Text -> Int -> Int -> Token
+disambiguateNumber text col line = if T.any (=='.') text then disambiguateFloat text col line else disambiguateInt text col line
+
+disambiguateFloat :: T.Text -> Int -> Int -> Token
+disambiguateFloat text col line =
+    let val = read text :: Float 
+        tokType = TokFloat val 
+        loc = SrcLoc col line 
+    in Token tokType loc 
+
+disambiguateInt :: T.Text -> Int -> Int -> Token 
+disambiguateInt = 
+    let val = read text :: Int 
+        tokType = TokFloat val 
+        loc = SrcLoc col line 
+    in Token tokType loc 
+
+disambiguateString :: T.Text -> Int -> Int -> Token
+disambiguateString text col line =
+    let tokType = TokString text 
+        loc = SrcLoc col line 
+    in Token tokType loc 
+
+disambiguateChar :: T.Text -> Int -> Int -> Token
+
+validOps :: Set.Set T.Text 
+validOps = set.fromList ["+", "-", "*", "/", "&", "&&", "|", "||", "!" "->", "%", ">", "<", ">=", "<", "==", "!=", "=", "(", ")", "{", "}", "[", "]"]
+disambiguateOperator :: T.Text -> Int -> Int -> Token

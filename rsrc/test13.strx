@@ -1,0 +1,9 @@
+# Testing function calling.
+
+def func -> void {
+    printString("Hello, world!");
+}
+
+def main -> void {
+    func();
+}

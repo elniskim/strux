@@ -1,0 +1,9 @@
+# Testing integer modulo.
+
+def main() -> void {
+    a: int;
+    b: int;
+    a = 11;
+    b = 4;
+    printInt(a % b);
+}

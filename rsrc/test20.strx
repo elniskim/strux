@@ -1,0 +1,14 @@
+# Testing for loops without statements;
+
+def main() -> void {
+    i: Int;
+    i = 0
+
+    for (;;) {
+        if (i >= 5) {
+            break;
+        }
+        i = i + 1;
+    }
+    printString("Completed! :)");
+}

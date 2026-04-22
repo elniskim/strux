@@ -1,0 +1,23 @@
+# Testing if-else branching.
+
+def main() -> void {
+    cond1: Bool;
+    cond2: Bool;
+    res1: Int;
+    res2: Int;
+
+    if (cond1) {
+        res1 = 0;
+    } else {
+        res1 = 1;
+    }
+
+    if (cond2) {
+        res2 = 0;
+    } else {
+        res1 = 1;
+    }
+
+    printInt(res1);
+    printInt(res2);
+}

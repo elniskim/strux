@@ -1,0 +1,23 @@
+# Testing companion structs.
+
+struct Vault {
+    code[4]: Char;
+    struct money {
+        numBills: Int;
+        totalValue: Float;
+    }
+}
+
+def main() -> void {
+    vault: Vault;
+
+    vault->code[0] = '4';
+    vault->code[1] = '6';
+    vault->code[2] = '8';
+    vault->code[3] = '0';
+
+    vault->money->numBills = 100;
+    vault->money->totalValue = 8000000.67;
+
+    printInt(vault->money->numBills);
+}

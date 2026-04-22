@@ -1,0 +1,22 @@
+# Testing structs inside structs.
+
+struct Bird {
+    beak: Int;
+    wing: Int;
+}
+
+struct Nest {
+    bird: Bird;
+    twig: Float;
+}
+
+def main -> void {
+    nest: Nest;
+
+    nest->twig = 7.884
+    nest->bird->beak = 5;
+    nest->bird->wing = 10;
+
+    printInt(nest->bird->beak);
+    printInt(nest->bird->wing);
+}

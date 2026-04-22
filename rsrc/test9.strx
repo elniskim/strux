@@ -1,0 +1,9 @@
+# Testing integer multiplication
+
+def main() -> void {
+    a: int;
+    b: int;
+    a = 3;
+    b = 2;
+    printInt(a * b);
+}

@@ -1,0 +1,19 @@
+# Testing using structs.
+
+struct Test {
+    int1: Int;
+    int2: Int;
+    boolean: Bool;
+}
+
+def main -> void {
+    test: Test;
+
+    test->int1 = 5;
+    test->int2 = 10;
+    test->boolean = False;
+
+    printInt(test->int1);
+    printInt(test->int2);
+    printBool(test->boolean);
+}

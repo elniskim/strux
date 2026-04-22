@@ -1,0 +1,9 @@
+# Testing integer division.
+
+def main() -> void {
+    a: int;
+    b: int;
+    a = 5;
+    b = 2;
+    printInt(a / b);
+}

@@ -1,0 +1,9 @@
+# Testing argument passing.
+
+def func(arg: int) -> void {
+    printInt(a);
+}
+
+def main() -> void {
+    func(5);
+}

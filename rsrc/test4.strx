@@ -3,6 +3,7 @@
 def main() -> void {
     printInt(5);
     printFloat(2.5);
+    printBool(True);
     printChar('a');
     printStr("Hello, world!");
 }

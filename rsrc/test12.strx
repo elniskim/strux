@@ -1,0 +1,14 @@
+# Testing boolean operators.
+
+def main -> void {
+    a: Bool;
+    b: Bool;
+    a = True;
+    b = False;
+
+    printBool(a);
+    printBool(b);
+    printBool(!a);
+    printBool(a && b);
+    printBool(a || b);
+}

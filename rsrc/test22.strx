@@ -1,0 +1,11 @@
+# Testing defining structs.
+
+struct Test {
+    a: Int;
+    b: Bool;
+    c[10]: Char;
+}
+
+def main -> void {
+
+}

@@ -1,0 +1,10 @@
+# Testing function value return.
+
+def add5(a: int) -> int {
+    a = a + 5;
+    return a;
+}
+
+def main() -> void {
+    printInt(add5(5));
+}

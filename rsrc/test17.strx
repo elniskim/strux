@@ -1,0 +1,14 @@
+# Testing conditional branching.
+
+def main() -> void {
+    cond: Bool;
+    res: int;
+    cond = True;
+    cond = 6
+
+    if (cond) {
+        cond = 3;
+    }
+
+    printInt(cond);
+}

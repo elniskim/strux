@@ -1,4 +1,4 @@
-# Testing comments and non-returning main functions!
+# Testing comments and non-returning void functions!
 
 def main() -> {
     

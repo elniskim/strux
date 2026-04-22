@@ -53,6 +53,7 @@ stmt
  | assignStmt
  | ifStmt
  | forStmt
+ | whileStmt
  | returnStmt
  | breakStmt
  | continueStmt
@@ -91,6 +92,10 @@ forStmt
  : 'for' '(' (assignStmt | ';') (expr0)? ';' (assignStmtNoSemi)? ')' stmtBlock
  ;
 
+whileStmt
+  : 'while' '(' expr0 ')' stmtBlock
+  ;
+
 exprList
  : ( expr0 ( ',' expr0 )* )?
  ;
@@ -111,7 +116,7 @@ expr2
  ;
 
 expr3
- : 'not' expr3
+ : '!' expr3
  | '(' expr0 ')'
  | designator
  | literal
@@ -135,6 +140,7 @@ op1
 op2
  : '*'
  | '/'
+ | '%'
  | 'and'
  ;
 
@@ -163,8 +169,8 @@ Integer
  | [1-9] [0-9]*
  ;
 
-True: 'true';
-False: 'false';
+True: 'True';
+False: 'False';
 
 Identifier
  : [a-zA-Z] [a-zA-Z0-9_]*
