@@ -67,10 +67,10 @@ executable strux
     -- other-extensions:
 
     -- Other library packages from which modules are imported.
-    build-depends:    base ^>=4.18.3.0, text, containers
+    build-depends:    base ^>=4.18.3.0, text, containers, HUnit
 
     -- Directories containing source files.
-    hs-source-dirs:   app, src
+    hs-source-dirs:   app, src, tst
 
     -- Base language which the package is written in.
     default-language: Haskell2010
