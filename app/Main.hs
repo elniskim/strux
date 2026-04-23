@@ -4,7 +4,7 @@ module Main where
 import qualified Data.Text as T
 import Data.Char (isLetter, isAlphaNum, isNumber, readLitChar)
 import qualified Data.Set as Set
-import qualified Data.Map as Map --Consider HashMap instead soon?
+import qualified Data.Map as Map --Consider HashMap instead?
 
 opChars :: Set.Set Char
 opChars = Set.fromList ['<', '>', '=', '+', '%', '-', '*', '/', '!', '&', '|', '[', ']', '(', ')', '{', '}', ';', ':', ',']
@@ -34,7 +34,7 @@ firstPass :: T.Text -> [FPToken]
 firstPass input = go $ LexerState input 1 1
     where
         go :: LexerState -> [FPToken]
-        go state@(LexerState text line column)
+        go state@(LexerState {remaining = text, stateLine = line, stateColumn = column})
             | Nothing <- u
             = []
 
@@ -75,7 +75,7 @@ updateLexerState state token newRemaining =
     let foldedState = T.foldl' update state token
     in foldedState { remaining = newRemaining }
         where update :: LexerState -> Char -> LexerState
-              update (LexerState r line col) char
+              update (LexerState {remaining = r, stateLine = line, stateColumn = col}) char
                 | char == '\n' = LexerState r (line + 1) 1
                 | otherwise = LexerState r line (col + 1)
 
@@ -167,6 +167,7 @@ data TokenType
     | TokBitAnd
     | TokLogAnd
     | TokBitOr
+    | TokLogOr
     | TokNot
     | TokSqBra
     | TokSqKet
@@ -179,13 +180,13 @@ data TokenType
     | TokComma
 
 data SrcLoc = SrcLoc {
-    line :: !Int,
-    col  :: !Int
+    srcLine :: !Int,
+    srcLol  :: !Int
 } deriving (Show, Eq)
 
 data Token = Token {
-    token :: TokenType,
-    loc :: SrcLoc
+    tokenType :: TokenType,
+    srcLoc :: SrcLoc
 }
 
 secondPass :: [FPToken] -> [Token]
