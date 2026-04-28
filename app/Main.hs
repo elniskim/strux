@@ -2,12 +2,21 @@
 module Main where
 
 import qualified Data.Text as T
+import qualified Data.Text.IO as TIO
 import Data.Char (isLetter, isAlphaNum, isNumber, readLitChar)
 import qualified Data.Set as Set
 import qualified Data.Map as Map --Consider HashMap instead?
+import System.Environment (getArgs)
+import Debug.Trace (trace)
 
-opChars :: Set.Set Char
+opChars :: Set.Set Char 
 opChars = Set.fromList ['<', '>', '=', '+', '%', '-', '*', '/', '!', '&', '|', '[', ']', '(', ')', '{', '}', ';', ':', ',']
+
+singleOps :: Set.Set Char
+singleOps = Set.fromList ['(', ')', '{', '}', '[', ']', ';', ',', ':']
+
+multiOps :: Set.Set Char
+multiOps = Set.fromList ['<', '>', '=', '+', '%', '-', '*', '/', '!', '&', '|']
 
 data FPToken
     = WordToken     { tokenText :: T.Text, tokenLine :: Int, tokenColumn :: Int }
@@ -28,7 +37,12 @@ data LexerState = LexerState {
 
 main :: IO ()
 main = do
-    putStrLn "Hello world!"
+    args <- getArgs
+    let file = head args
+    code <- TIO.readFile file
+    print $ lexStrux code
+
+
 
 firstPass :: T.Text -> [FPToken]
 firstPass input = go $ LexerState input 1 1
@@ -55,12 +69,16 @@ firstPass input = go $ LexerState input 1 1
             = let (token, rest) = munchChar text in CharLiteral token line column : go (updateLexerState state token rest)
 
             | Just(c,_) <- u
-            , opStart c
-            = let (token, rest) = T.span opStart text in Operator token line column : go (updateLexerState state token rest)
+            , multiOpStart c
+            = let (token, rest) = T.span multiOpStart text in Operator token line column : go (updateLexerState state token rest)
+
+            | Just(c,r) <- u
+            , singleOpStart c
+            = let (token, rest) = (T.singleton c, r) in Operator token line column : go (updateLexerState state token rest)
 
             | Just(c,_) <- u
             , isWhitespace c
-            = let (token, rest) = T.span opStart text in go (updateLexerState state token rest) -- Whitespace isn't a token.
+            = let (token, rest) = T.span isWhitespace text in go (updateLexerState state token rest) -- Whitespace isn't a token.
 
             | Just(c,_) <- u
             , c == '#'
@@ -121,8 +139,11 @@ munchChar file =
                 | otherwise = findLen (T.tail text) (numChars + 1)
                     where c = T.head text
 
-opStart :: Char -> Bool
-opStart c = Set.member c opChars
+multiOpStart :: Char -> Bool
+multiOpStart c = Set.member c multiOps
+
+singleOpStart :: Char -> Bool
+singleOpStart c = Set.member c singleOps
 
 commentStart :: Char -> Bool
 commentStart c = c == '#'
@@ -178,6 +199,7 @@ data TokenType
     | TokColon
     | TokSemi
     | TokComma
+    deriving (Show)
 
 data SrcLoc = SrcLoc {
     srcLine :: !Int,
@@ -189,15 +211,18 @@ data Token = Token {
     srcLoc :: SrcLoc
 }
 
+instance Show Token where
+    show token = show $ tokenType token 
+
 secondPass :: [FPToken] -> [Token]
 secondPass = map disambiguate
 
 disambiguate :: FPToken -> Token
-disambiguate (WordToken text line col) = disambiguateWord text line col
-disambiguate (NumberLiteral text line col) = disambiguateNumber text line col
-disambiguate (StringLiteral text line col) = disambiguateString text line col
-disambiguate (CharLiteral text line col) = disambiguateChar text line col
-disambiguate (Operator text line col) = disambiguateOperator text line col
+disambiguate (WordToken text line col) = trace ("WORD: " ++ show (T.unpack text)) $ disambiguateWord text line col
+disambiguate (NumberLiteral text line col) = trace ("NUMBER: " ++ show (T.unpack text)) $ disambiguateNumber text line col
+disambiguate (StringLiteral text line col) = trace ("STRING: " ++ show (T.unpack text)) $ disambiguateString text line col
+disambiguate (CharLiteral text line col) = trace ("CHAR: " ++ show (T.unpack text)) $ disambiguateChar text line col
+disambiguate (Operator text line col) = trace ("OPERATOR: " ++ show (T.unpack text)) $ disambiguateOperator text line col
 
 disambiguateWord :: T.Text -> Int -> Int -> Token
 disambiguateWord text col line =
@@ -223,14 +248,14 @@ disambiguateNumber text col line = if T.any (=='.') text then disambiguateFloat 
 
 disambiguateFloat :: T.Text -> Int -> Int -> Token
 disambiguateFloat text col line =
-    let val = read (show text) :: Float
+    let val = read (T.unpack text) :: Float
         tokType = TokFloat val
         loc = SrcLoc col line
     in Token tokType loc
 
 disambiguateInt :: T.Text -> Int -> Int -> Token
 disambiguateInt text col line=
-    let val = read (show text) :: Int
+    let val = read (T.unpack text) :: Int
         tokType = TokInt val
         loc = SrcLoc col line
     in Token tokType loc
@@ -243,7 +268,7 @@ disambiguateString text col line =
 
 disambiguateChar :: T.Text -> Int -> Int -> Token
 disambiguateChar text col line =
-    let valMonad = readLitChar (show text)
+    let valMonad = readLitChar (T.unpack text)
         val = case valMonad of
             [(c, "")] -> c
             _         -> error $ "Malformed character literal " ++ show text ++ " at line " ++ show line ++ " column " ++ show col
@@ -255,12 +280,16 @@ disambiguateChar text col line =
 opMap :: Map.Map T.Text TokenType
 opMap = Map.fromList [("+", TokPlus), ("-", TokMinus), ("*", TokMult), ("/", TokDiv), ("&", TokBitAnd), ("&&", TokLogAnd), ("|", TokBitOr), ("||", TokLogOr),
                       ("!", TokNot), ("->", TokArrow), ("%", TokMod), (">", TokGT), ("<", TokLT), (">=", TokGE), ("<=", TokLE), ("==", TokEq), ("!=", TokNEq),
-                      ("=", TokAssign), ("(", TokOpenParen), (")", TokCloseParen), ("{", TokCrBra), ("}", TokCrKet), ("[", TokSqBra), ("]", TokSqKet)]
+                      ("=", TokAssign), ("(", TokOpenParen), (")", TokCloseParen), ("{", TokCrBra), ("}", TokCrKet), ("[", TokSqBra), ("]", TokSqKet), 
+                      (";", TokSemi), (":", TokColon)]
 disambiguateOperator :: T.Text -> Int -> Int -> Token
 disambiguateOperator text col line =
     let tokType' = Map.lookup text opMap
-        tokType = case tokType' of 
-            Just t  -> t 
+        tokType = case tokType' of
+            Just t  -> t
             Nothing -> error $ "Malformed operator " ++ show text ++ " at line " ++ show line ++ " column " ++ show col
-        loc = SrcLoc col line 
-    in Token tokType loc 
+        loc = SrcLoc col line
+    in Token tokType loc
+
+lexStrux :: T.Text -> [Token]
+lexStrux = secondPass . firstPass
