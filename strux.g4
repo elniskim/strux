@@ -102,17 +102,17 @@ exprList
 
 expr0
  : expr1
- | expr0 op0 expr1
+ | expr1 op0 expr0
  ;
 
 expr1
  : expr2
- | expr1 op1 expr2
+ | expr2 op1 expr1
  ;
 
 expr2
  : expr3
- | expr2 op2 expr3
+ | expr3 op2 expr2
  ;
 
 expr3

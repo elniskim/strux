@@ -21,6 +21,7 @@ data FPToken
     | StringLiteral { tokenText :: T.Text, tokenLine :: Int, tokenColumn :: Int }
     | CharLiteral   { tokenText :: T.Text, tokenLine :: Int, tokenColumn :: Int }
     | Operator      { tokenText :: T.Text, tokenLine :: Int, tokenColumn :: Int }
+    | Malformed     { tokenText :: T.Text, tokenLine :: Int, tokenColumn :: Int, errMsg :: T.Text }
     -- | Comments      { tokenText :: T.Text, tokenLine :: Int, tokenColumn :: Int }
     -- | Whitespace    { tokenText :: T.Text, tokenLine :: Int, tokenColumn :: Int }
     deriving (Show)
@@ -71,10 +72,11 @@ firstPass input = go $ LexerState input 1 1
             = let (token, rest) = T.span isWhitespace text in go (updateLexerState state token rest) -- Whitespace isn't a token.
 
             | Just(c,_) <- u
-            , commentStart c 
+            , commentStart c
             = let (token, rest) = T.span (/= '\n') text in go (updateLexerState state token rest) -- Comments aren't a token.
 
-            | otherwise = error $ "Illegal character" ++ "at line " ++ show line ++ "column " ++ show column
+            | Just(c,r) <- u
+            = let (token, rest) = (T.singleton c, r) in Malformed token line column (T.pack $ "Illegal character " ++ show c ++ " at line " ++ show line ++ " column " ++ show column) : go (updateLexerState state token rest)
 
                 where u = T.uncons text
 
@@ -125,7 +127,7 @@ munchChar file =
                 | T.null text = error "EOF while parsing character."
               findLen text numChars
                 | c == '\\' = findLen (T.drop 2 text) (numChars + 2)
-                | c == '\'' = numChars + 2 
+                | c == '\'' = numChars + 2
                 | otherwise = findLen (T.tail text) (numChars + 1)
                     where c = T.head text
 
@@ -140,10 +142,6 @@ commentStart c = c == '#'
 
 isWhitespace :: Char -> Bool
 isWhitespace c = c `elem` [' ', '\n', '\t', '\r']
-
-
-
-
 
 data TokenType
     = TokIdent T.Text
@@ -189,7 +187,8 @@ data TokenType
     | TokColon
     | TokSemi
     | TokComma
-    deriving (Show)
+    | TokErr T.Text
+    deriving (Show, Eq)
 
 data SrcLoc = SrcLoc {
     srcLine :: !Int,
@@ -202,7 +201,7 @@ data Token = Token {
 }
 
 instance Show Token where
-    show token = show $ tokenType token 
+    show token = show $ tokenType token
 
 secondPass :: [FPToken] -> [Token]
 secondPass = map disambiguate
@@ -213,6 +212,7 @@ disambiguate (NumberLiteral text line col) = disambiguateNumber text line col
 disambiguate (StringLiteral text line col) = disambiguateString text line col
 disambiguate (CharLiteral text line col) = disambiguateChar text line col
 disambiguate (Operator text line col) = disambiguateOperator text line col
+disambiguate (Malformed text line col msg) = disambiguateMalformed text line col msg
 
 disambiguateWord :: T.Text -> Int -> Int -> Token
 disambiguateWord text col line =
@@ -262,26 +262,48 @@ disambiguateChar text col line =
     let unwrapped = T.drop 1 $ T.dropEnd 1 text -- Expensive. :(
         valMonad = readLitChar (T.unpack unwrapped)
         val = case valMonad of
-            [(c, "")] -> c
-            _         -> error $ "Malformed character literal " ++ show text ++ " at line " ++ show line ++ " column " ++ show col
-        tokType = TokChar val
+            [(c, "")] -> Just c
+            _         -> Nothing
+        tokType = case val of
+            Just c -> TokChar c
+            Nothing -> TokErr $ T.pack ("Malformed character literal " ++ show text ++ " at line " ++ show line ++ " column " ++ show col)
         loc = SrcLoc col line
     in Token tokType loc
-
 
 opMap :: Map.Map T.Text TokenType
 opMap = Map.fromList [("+", TokPlus), ("-", TokMinus), ("*", TokMult), ("/", TokDiv), ("&", TokBitAnd), ("&&", TokLogAnd), ("|", TokBitOr), ("||", TokLogOr),
                       ("!", TokNot), ("->", TokArrow), ("%", TokMod), (">", TokGT), ("<", TokLT), (">=", TokGE), ("<=", TokLE), ("==", TokEq), ("!=", TokNEq),
-                      ("=", TokAssign), ("(", TokOpenParen), (")", TokCloseParen), ("{", TokCrBra), ("}", TokCrKet), ("[", TokSqBra), ("]", TokSqKet), 
+                      ("=", TokAssign), ("(", TokOpenParen), (")", TokCloseParen), ("{", TokCrBra), ("}", TokCrKet), ("[", TokSqBra), ("]", TokSqKet),
                       (";", TokSemi), (":", TokColon)]
 disambiguateOperator :: T.Text -> Int -> Int -> Token
 disambiguateOperator text col line =
     let tokType' = Map.lookup text opMap
         tokType = case tokType' of
             Just t  -> t
-            Nothing -> error $ "Malformed operator " ++ show text ++ " at line " ++ show line ++ " column " ++ show col
+            Nothing -> TokErr $ T.pack ("Malformed operator " ++ show text ++ " at line " ++ show line ++ " column " ++ show col)
         loc = SrcLoc col line
     in Token tokType loc
 
-lexStrux :: T.Text -> [Token]
-lexStrux = secondPass . firstPass
+disambiguateMalformed :: T.Text -> Int -> Int -> T.Text -> Token
+disambiguateMalformed _ col line msg =
+    let tokType = TokErr msg
+        loc = SrcLoc col line
+    in Token tokType loc
+
+-- TODO: Likely return an either with a Right [Token] and a Left T.Text with an error/list of errors. Something with folding a bunch of error tokens together to get a list of problems.
+lexStrux' :: T.Text -> [Token]
+lexStrux' = secondPass . firstPass
+
+lexStrux :: T.Text -> Either T.Text [Token]
+lexStrux input =
+    let tokens = lexStrux' input
+        report = errReport tokens
+    in case report of
+        [] -> Right tokens
+        _  -> Left $ T.intercalate "\n" ("Parse errors reported:" : report)
+
+errReport :: [Token] -> [T.Text]
+errReport = foldr addErr []
+    where addErr token report = case tokenType token of 
+              TokErr msg -> msg : report
+              _          -> report 
