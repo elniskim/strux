@@ -8,6 +8,7 @@ declList
  : decl*
  ;
 
+// --- Declarations ---
 decl
  : varDecl
  | arrayDecl
@@ -39,6 +40,7 @@ param
  : Identifier ':' type
  ;
 
+// --- Statements ---
 stmtBlock
  : '{' stmtList '}'
  ;
@@ -49,8 +51,7 @@ stmtList
 
 stmt
  : varDecl
- | designatorStmt
- | assignStmt
+ | exprStmt
  | ifStmt
  | forStmt
  | whileStmt
@@ -59,14 +60,9 @@ stmt
  | continueStmt
  ;
 
-assignStmt
- : assignStmtNoSemi ';'
+exprStmt
+ : expr0 ';'
  ;
-
-assignStmtNoSemi
- : designator '=' expr0
- ;
-// We have to check for L-Value-ness during type checking now
 
 designatorStmt
  : designator ';'
@@ -89,7 +85,7 @@ ifStmt
  ;
 
 forStmt
- : 'for' '(' (assignStmt | ';') (expr0)? ';' (assignStmtNoSemi)? ')' stmtBlock
+ : 'for' '(' (expr0)? ';' (expr0)? ';' (expr0)? ')' stmtBlock
  ;
 
 whileStmt
@@ -100,29 +96,47 @@ exprList
  : ( expr0 ( ',' expr0 )* )?
  ;
 
+// --- Expressions ---
+
+// Assignment
 expr0
- : expr1
- | expr0 op0 expr1
+ : expr1 '=' expr0
+ | expr1 
  ;
 
+// Comparisons
 expr1
- : expr2
- | expr1 op1 expr2
+ : expr2 (op1 expr2)*
  ;
 
+// Additive operators
 expr2
- : expr3
- | expr2 op2 expr3
+ : expr3 (op2 expr3)*
  ;
 
+// Multiplicative operators
 expr3
- : '!' expr3
- | '(' expr0 ')'
- | designator
- | literal
+ : expr4 (op3 expr4)*
  ;
 
-op0
+// Unary operators
+expr4
+ : '-' expr4
+ | '!' expr4
+ | expr5
+ ;
+
+expr5
+ : primary (postfixOp)*
+ ;
+
+primary
+ : '(' expr0 ')'
+ | Identifier
+ | literal 
+ ;
+
+op1
  : '>='
  | '<='
  | '=='
@@ -131,13 +145,13 @@ op0
  | '<'
  ;
 
-op1
+op2
  : '+'
  | '-'
  | 'or'
  ;
 
-op2
+op3
  : '*'
  | '/'
  | '%'

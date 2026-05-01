@@ -1,8 +1,10 @@
 {-# LANGUAGE OverloadedStrings #-}
-module Lexer (Token(Token), TokenType, SrcLoc, lexStrux) where
+{-# LANGUAGE DeriveDataTypeable #-}
+module Lexer (Token(..), TokenType(..), SrcLoc(..), lexStrux) where
 
 import qualified Data.Text as T
 import Data.Char (isLetter, isAlphaNum, isNumber, readLitChar)
+import Data.Data (Data)
 import qualified Data.Set as Set
 import qualified Data.Map as Map --Consider HashMap instead?
 
@@ -189,7 +191,7 @@ data TokenType
     | TokColon
     | TokSemi
     | TokComma
-    deriving (Show)
+    deriving (Show, Data)
 
 data SrcLoc = SrcLoc {
     srcLine :: !Int,
