@@ -1,16 +1,63 @@
-{- HLINT ignore "Use lambda-case" -}
 {-# LANGUAGE OverloadedStrings #-}
+{- HLINT ignore "Use newtype instead of data" -}
 module Parser where
 
 import Lexer
 import Data.Data (toConstr)
+import qualified Data.Text as T 
+import Control.Applicative (many, some, optional)
 
 newtype Parser a = Parser {
     runParser :: [Token] -> Maybe (a, [Token])
 }
 
-data ParseTree =
-    Leaf 
+data Program = Program {
+    declList :: [Decl]
+}
+
+data Decl  
+    = GlobalVarDecl   { globalName :: T.Text, globalType :: Type }
+    | ArrayDecl       { arrName :: T.Text, arrType :: Type }
+    | FuncDef         { funcName :: T.Text, returnType :: Type, argTypes :: [Type], funcBody :: [Stmt] }
+    | StructDef       { structName :: T.Text, attributes :: [Decl] }
+
+data Stmt 
+    = LocalVarDecl   { localName :: T.Text, localType :: Type }
+    | ExprStmt       { expression :: Expr }
+    | ForStmt        { initial :: Maybe Expr, forCondition :: Maybe Expr, increment :: Maybe Expr, forBody :: [Stmt] }
+    | WhileStmt      { whileCondition :: Expr, whileBody :: [Stmt] }
+    | ReturnStmt     { retVal :: Maybe Expr }
+    | BreakStmt   
+    | ContinueStmt
+
+data Expr 
+    = Binary         { operator :: Op, left :: Expr, right :: Expr } 
+    | Unary          { operator :: Op, right :: Expr }
+    | FunctionCall   { funcName :: Expr, arguments :: [Expr] }
+    | ArrayIndex     { arrName :: Expr, index :: Expr }
+    | StructDeref    { structName :: Expr, fieldName :: T.Text }
+    | Primary        { atom :: Atom }
+
+data Atom 
+    = Symbol            { symbolName :: T.Text, varType :: Type }
+    | IntLiteral        { intVal :: Int }
+    | FloatLiteral      { floatVal :: Float }
+    | CharLiteral       { charVal :: Char }
+    | StringLiteral     { strVal :: T.Text }
+    | GroupedExpression { inParens :: Expr }
+
+data Op 
+    = 
+
+
+data Type
+    = IntType 
+    | FloatType 
+    | BoolType 
+    | StructType T.Text 
+    | ArrayType Int Type 
+    | VoidType 
+    deriving (Show, Eq)
 
 -- Factory for one token parsers.
 satisfy :: (Token -> Bool) -> Parser Token
