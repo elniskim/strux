@@ -64,10 +64,6 @@ exprStmt
  : expr0 ';'
  ;
 
-designatorStmt
- : designator ';'
- ;
-
 returnStmt
  : 'return' expr0 ';'
  ;
@@ -148,18 +144,16 @@ op1
 op2
  : '+'
  | '-'
- | 'or'
+ | '|'
+ | '||'
  ;
 
 op3
  : '*'
  | '/'
  | '%'
- | 'and'
- ;
-
-designator
- : Identifier postfixOp*
+ | '&'
+ | '&&'
  ;
 
 postfixOp
