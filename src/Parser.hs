@@ -1,44 +1,74 @@
 {-# LANGUAGE OverloadedStrings #-}
+{- HLINT ignore "Use lambda-case" -}
 {- HLINT ignore "Use newtype instead of data" -}
 module Parser where
 
 import Lexer
 import Data.Data (toConstr)
-import qualified Data.Text as T 
-import Control.Applicative (many, some, optional)
+import qualified Data.Text as T
+import Control.Applicative (many, some, optional, Alternative(..))
 
 newtype Parser a = Parser {
     runParser :: [Token] -> Maybe (a, [Token])
 }
 
+instance Functor Parser where
+    fmap f p = Parser $ \tokens ->
+        let output = runParser p tokens
+        in case output of
+            Nothing          -> Nothing
+            Just (val, rest) -> Just (f val, rest)
+
+instance Applicative Parser where
+    pure x = Parser $ \tokens -> Just (x, tokens)
+    pf <*> px = Parser $ \tokens ->
+        let output = runParser pf tokens
+        in case output of
+            Nothing -> Nothing
+            Just (f, rest) -> runParser (fmap f px) rest
+
+instance Alternative Parser where
+    empty = Parser $ const Nothing
+    p1 <|> p2 = Parser $ \tokens ->
+        case runParser p1 tokens of 
+            Just x  -> Just x 
+            Nothing -> runParser p2 tokens
+
+instance Monad Parser where
+    px >>= f = Parser $ \tokens ->
+        let output = runParser px tokens
+        in case output of
+            Nothing -> Nothing
+            Just (a, rest) -> runParser (f a) rest
+
 data Program = Program {
     declList :: [Decl]
 }
 
-data Decl  
+data Decl
     = GlobalVarDecl   { globalName :: T.Text, globalType :: Type }
     | ArrayDecl       { arrDeclName :: T.Text, arrType :: Type }
     | FuncDef         { funcDeclName :: T.Text, returnType :: Type, argTypes :: [Type], funcBody :: [Stmt] }
     | StructDef       { strucDecltName :: T.Text, attributes :: [Decl] }
 
-data Stmt 
+data Stmt
     = LocalVarDecl   { localName :: T.Text, localType :: Type }
     | ExprStmt       { expression :: Expr }
     | ForStmt        { initial :: Maybe Expr, forCondition :: Maybe Expr, increment :: Maybe Expr, forBody :: [Stmt] }
     | WhileStmt      { whileCondition :: Expr, whileBody :: [Stmt] }
     | ReturnStmt     { retVal :: Maybe Expr }
-    | BreakStmt   
+    | BreakStmt
     | ContinueStmt
 
-data Expr 
-    = Binary         { binaryOp :: BinOp, left :: Expr, right :: Expr } 
+data Expr
+    = Binary         { binaryOp :: BinOp, left :: Expr, right :: Expr }
     | Unary          { unaryOp :: UnaryOp, right :: Expr }
     | FunctionCall   { funcName :: Expr, arguments :: [Expr] }
     | ArrayIndex     { arrName :: Expr, index :: Expr }
     | StructDeref    { structName :: Expr, fieldName :: T.Text }
     | Primary        { atom :: Atom }
 
-data Atom 
+data Atom
     = Symbol            { symbolName :: T.Text, varType :: Type }
     | IntLiteral        { intVal :: Int }
     | FloatLiteral      { floatVal :: Float }
@@ -46,15 +76,15 @@ data Atom
     | StringLiteral     { strVal :: T.Text }
     | GroupedExpression { inParens :: Expr }
 
-data BinOp 
+data BinOp
     = GT
     | GE
     | LT
     | LE
     | EQ
     | NEQ
-    | ADD 
-    | SUB 
+    | ADD
+    | SUB
     | LOGOR
     | BITOR
     | MULT
@@ -68,158 +98,155 @@ data UnaryOp
     | NEG
 
 data Type
-    = IntType 
-    | FloatType 
-    | BoolType 
-    | StructType T.Text 
-    | ArrayType Int Type 
-    | VoidType 
+    = IntType
+    | FloatType
+    | BoolType
+    | StructType T.Text
+    | ArrayType Int Type
+    | VoidType
     deriving (Show, Eq)
 
 -- Factory for one token parsers.
 satisfy :: (Token -> Bool) -> Parser Token
 satisfy predicate = Parser $ \tokens -> case tokens of
     []     -> Nothing
-    (t:ts) -> if predicate t 
-              then Just (t,ts) 
-              else Nothing 
+    (t:ts) -> if predicate t
+              then Just (t,ts)
+              else Nothing
 
 matchToken :: TokenType -> Token -> Bool
-matchToken type1 token = 
-    let type2 = tokenType token 
+matchToken type1 token =
+    let type2 = tokenType token
     in toConstr type1 == toConstr type2
 
 parseStrux :: [Token] -> Maybe Program
-parseStrux = do
-    decls <- many parseDecl
-    -- something with parsing EOF. ensure we also send back an eof token
-    return decls
+parseStrux _ = Nothing
 
 
 parseIdent :: Parser Token
 parseIdent = parseToken anyIdent
 
-parseIf :: Parser Token 
+parseIf :: Parser Token
 parseIf = parseToken TokIf
 
-parseElse :: Parser Token 
-parseElse = parseToken TokElse 
+parseElse :: Parser Token
+parseElse = parseToken TokElse
 
-parseFor :: Parser Token 
+parseFor :: Parser Token
 parseFor = parseToken TokFor
 
-parseWhile :: Parser Token 
-parseWhile = parseToken TokWhile 
+parseWhile :: Parser Token
+parseWhile = parseToken TokWhile
 
-parseDef :: Parser Token 
-parseDef = parseToken TokDef 
+parseDef :: Parser Token
+parseDef = parseToken TokDef
 
-parseStruct :: Parser Token 
-parseStruct = parseToken TokStruct 
+parseStruct :: Parser Token
+parseStruct = parseToken TokStruct
 
 parseTrue :: Parser Token
-parseTrue = parseToken TokTrue 
+parseTrue = parseToken TokTrue
 
-parseFalse :: Parser Token 
-parseFalse = parseToken TokFalse 
+parseFalse :: Parser Token
+parseFalse = parseToken TokFalse
 
-parseBreak :: Parser Token 
-parseBreak = parseToken TokBreak 
+parseBreak :: Parser Token
+parseBreak = parseToken TokBreak
 
 parseContinue :: Parser Token
 parseContinue = parseToken TokContinue
 
-parseReturn :: Parser Token 
-parseReturn = parseToken TokReturn 
+parseReturn :: Parser Token
+parseReturn = parseToken TokReturn
 
-parseInt :: Parser Token 
-parseInt = parseToken anyInt 
+parseInt :: Parser Token
+parseInt = parseToken anyInt
 
-parseFloat :: Parser Token 
-parseFloat = parseToken anyFloat 
+parseFloat :: Parser Token
+parseFloat = parseToken anyFloat
 
-parseString :: Parser Token 
-parseString = parseToken anyString 
+parseString :: Parser Token
+parseString = parseToken anyString
 
-parseChar :: Parser Token 
-parseChar = parseToken anyChar 
+parseChar :: Parser Token
+parseChar = parseToken anyChar
 
-parsePlus :: Parser Token 
-parsePlus = parseToken TokPlus 
+parsePlus :: Parser Token
+parsePlus = parseToken TokPlus
 
 parseMinus :: Parser Token
-parseMinus = parseToken TokMinus 
+parseMinus = parseToken TokMinus
 
-parseMult :: Parser Token 
-parseMult = parseToken TokMult 
+parseMult :: Parser Token
+parseMult = parseToken TokMult
 
-parseDiv :: Parser Token 
-parseDiv = parseToken TokDiv 
+parseDiv :: Parser Token
+parseDiv = parseToken TokDiv
 
-parseMod :: Parser Token 
-parseMod = parseToken TokMod 
+parseMod :: Parser Token
+parseMod = parseToken TokMod
 
-parseEq :: Parser Token 
-parseEq = parseToken TokEq 
+parseEq :: Parser Token
+parseEq = parseToken TokEq
 
-parseNEq :: Parser Token 
-parseNEq = parseToken TokNEq 
+parseNEq :: Parser Token
+parseNEq = parseToken TokNEq
 
-parseGT :: Parser Token 
-parseGT = parseToken TokGT 
+parseGT :: Parser Token
+parseGT = parseToken TokGT
 
-parseGE :: Parser Token 
-parseGE = parseToken TokGE 
+parseGE :: Parser Token
+parseGE = parseToken TokGE
 
-parseLT :: Parser Token 
-parseLT = parseToken TokLT 
+parseLT :: Parser Token
+parseLT = parseToken TokLT
 
-parseLE :: Parser Token 
-parseLE = parseToken TokLE 
+parseLE :: Parser Token
+parseLE = parseToken TokLE
 
-parseAssign :: Parser Token 
+parseAssign :: Parser Token
 parseAssign = parseToken TokAssign
 
-parseArrow :: Parser Token 
-parseArrow = parseToken TokArrow 
+parseArrow :: Parser Token
+parseArrow = parseToken TokArrow
 
-parseBitAnd :: Parser Token 
+parseBitAnd :: Parser Token
 parseBitAnd = parseToken TokBitAnd
 
 parseLogAnd :: Parser Token
 parseLogAnd = parseToken TokLogAnd
 
-parseBitOr :: Parser Token 
-parseBitOr = parseToken TokBitOr 
+parseBitOr :: Parser Token
+parseBitOr = parseToken TokBitOr
 
-parseNot :: Parser Token 
-parseNot = parseToken TokNot 
+parseNot :: Parser Token
+parseNot = parseToken TokNot
 
-parseSqBra :: Parser Token 
-parseSqBra = parseToken TokSqBra 
+parseSqBra :: Parser Token
+parseSqBra = parseToken TokSqBra
 
-parseSqKet :: Parser Token 
-parseSqKet = parseToken TokSqKet 
+parseSqKet :: Parser Token
+parseSqKet = parseToken TokSqKet
 
-parseCrBra :: Parser Token 
-parseCrBra = parseToken TokCrBra 
+parseCrBra :: Parser Token
+parseCrBra = parseToken TokCrBra
 
-parseCrKet :: Parser Token 
-parseCrKet = parseToken TokCrKet 
+parseCrKet :: Parser Token
+parseCrKet = parseToken TokCrKet
 
-parseOpenParen :: Parser Token 
+parseOpenParen :: Parser Token
 parseOpenParen = parseToken TokOpenParen
 
-parseCloseParen :: Parser Token 
+parseCloseParen :: Parser Token
 parseCloseParen = parseToken TokCloseParen
 
-parseColon :: Parser Token 
-parseColon = parseToken TokColon 
+parseColon :: Parser Token
+parseColon = parseToken TokColon
 
 parseSemi :: Parser Token
 parseSemi = parseToken TokSemi
 
-parseComma :: Parser Token 
+parseComma :: Parser Token
 parseComma = parseToken TokComma
 
 parseToken :: TokenType -> Parser Token
