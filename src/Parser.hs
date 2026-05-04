@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{- HLINT ignore "Use <$>" -}
 {- HLINT ignore "Use lambda-case" -}
 {- HLINT ignore "Use newtype instead of data" -}
 module Parser where
@@ -6,6 +7,7 @@ module Parser where
 import Lexer
 import Data.Data (toConstr)
 import qualified Data.Text as T
+import Data.List (uncons)
 import Control.Applicative (many, some, optional, Alternative(..))
 
 newtype Parser a = Parser {
@@ -30,8 +32,8 @@ instance Applicative Parser where
 instance Alternative Parser where
     empty = Parser $ const Nothing
     p1 <|> p2 = Parser $ \tokens ->
-        case runParser p1 tokens of 
-            Just x  -> Just x 
+        case runParser p1 tokens of
+            Just x  -> Just x
             Nothing -> runParser p2 tokens
 
 instance Monad Parser where
@@ -45,20 +47,27 @@ data Program = Program {
     declList :: [Decl]
 }
 
+data Argument = Argument { 
+    argName :: T.Text, 
+    argType :: Type 
+}
+
 data Decl
-    = GlobalVarDecl   { globalName :: T.Text, globalType :: Type }
-    | ArrayDecl       { arrDeclName :: T.Text, arrType :: Type }
-    | FuncDef         { funcDeclName :: T.Text, returnType :: Type, argTypes :: [Type], funcBody :: [Stmt] }
-    | StructDef       { strucDecltName :: T.Text, attributes :: [Decl] }
+    = GlobalVarDecl   { globalName :: T.Text, globalType :: Type } 
+    | GlobalArrDecl   { globalArrDeclName :: T.Text, globalArrType :: Type } 
+    | FuncDef         { funcDeclName :: T.Text, returnType :: Type, args :: [Argument], funcBody :: [Stmt] } 
+    | StructDef       { strucDecltName :: T.Text, attributes :: [Decl] } 
 
 data Stmt
-    = LocalVarDecl   { localName :: T.Text, localType :: Type }
-    | ExprStmt       { expression :: Expr }
-    | ForStmt        { initial :: Maybe Expr, forCondition :: Maybe Expr, increment :: Maybe Expr, forBody :: [Stmt] }
-    | WhileStmt      { whileCondition :: Expr, whileBody :: [Stmt] }
-    | ReturnStmt     { retVal :: Maybe Expr }
-    | BreakStmt
-    | ContinueStmt
+    = LocalVarDecl   { localName :: T.Text, localType :: Type } 
+    | LocalArrDecl   { localArrDeclName :: T.Text, localArrType :: Type } 
+    | ExprStmt       { expression :: Expr } 
+    | IfStmt         { cond :: Expr, ifBlock :: [Stmt], elseBlock :: [Stmt] } 
+    | ForStmt        { initial :: Maybe Expr, forCondition :: Maybe Expr, increment :: Maybe Expr, forBody :: [Stmt] } 
+    | WhileStmt      { whileCondition :: Expr, whileBody :: [Stmt] } 
+    | ReturnStmt     { retVal :: Maybe Expr } 
+    | BreakStmt 
+    | ContinueStmt 
 
 data Expr
     = Binary         { binaryOp :: BinOp, left :: Expr, right :: Expr }
@@ -106,6 +115,14 @@ data Type
     | VoidType
     deriving (Show, Eq)
 
+-- Matches singleton types.
+matchType :: T.Text -> Type
+matchType t = case t of
+    "int"   -> IntType
+    "float" -> FloatType
+    "bool"  -> BoolType
+    _       -> StructType t
+
 -- Factory for one token parsers.
 satisfy :: (Token -> Bool) -> Parser Token
 satisfy predicate = Parser $ \tokens -> case tokens of
@@ -120,11 +137,150 @@ matchToken type1 token =
     in toConstr type1 == toConstr type2
 
 parseStrux :: [Token] -> Maybe Program
-parseStrux _ = Nothing
+parseStrux tokens =
+    let output = runParser (many parseDecl) tokens
+    in case output of
+        Just (decls, []) -> Just (Program decls)
+        _                -> Nothing
+
+parseDecl :: Parser Decl
+parseDecl = parseGlobalVarDecl <|> parseGlobalArrayDecl <|> parseFuncDef <|> parseStructDef
+
+parseGlobalVarDecl :: Parser Decl
+parseGlobalVarDecl = do
+    n <- parseIdent
+    _ <- parseColon
+    t <- parseType
+    _ <- parseSemi
+    pure (GlobalVarDecl n t)
+
+parseGlobalArrayDecl :: Parser Decl
+parseGlobalArrayDecl = do
+    n <- parseIdent
+    _ <- parseSqBra
+    e <- parseInt
+    _ <- parseSqKet
+    _ <- parseColon
+    t <- parseType
+    _ <- parseSemi
+    pure (GlobalArrDecl n (ArrayType e t))
+
+parseFuncDef :: Parser Decl
+parseFuncDef = do
+    _ <- parseDef
+    n <- parseIdent
+    _ <- parseOpenParen
+    ps <- parseParamList
+    _ <- parseCloseParen
+    _ <- parseArrow
+    t <- parseType
+    ss <- parseStmtBlock
+    pure (FuncDef n t ps ss)
+
+parseParamList :: Parser [Argument]
+parseParamList = parseParams <|> pure []
+    where
+        parseParams :: Parser [Argument]
+        parseParams = do 
+            first <- parseParam
+            rest <- parseRest
+            pure (first : rest)
+        parseParam :: Parser Argument
+        parseParam = do 
+            n <- parseIdent
+            _ <- parseColon 
+            t <- parseType
+            pure (Argument n t)
+        parseRest :: Parser [Argument] 
+        parseRest = many (parseComma *> parseParam)
+
+parseStructDef :: Parser Decl
+parseStructDef = do
+    _ <- parseStruct
+    n <- parseIdent
+    _ <- parseCrBra
+    ds <- many parseAttr
+    _ <- parseCrKet
+    pure (StructDef n ds)
+    where
+        parseAttr :: Parser Decl
+        parseAttr = parseGlobalVarDecl <|> parseGlobalArrayDecl <|> parseStructDef
+
+parseStmtBlock :: Parser [Stmt]
+parseStmtBlock = do 
+    _ <- parseCrBra
+    ss <- many parseStmt 
+    _ <- parseCrKet
+    pure ss
+
+parseStmt :: Parser Stmt 
+parseStmt = parseLocalVarDecl <|> parseLocalArrDecl <|> parseExprStmt <|> parseIfStmt <|> 
+    parseFor <|> parseWhile <|> parseReturn <|> parseBreak <|> parseContinue 
+
+parseLocalVarDecl :: Parser Stmt 
+parseLocalVarDecl = do 
+    n <- parseIdent 
+    _ <- parseColon 
+    t <- parseType 
+    _ <- parseSemi 
+    pure (LocalVarDecl n t)
+
+parseLocalArrDecl :: Parser Stmt 
+parseLocalArrDecl = do 
+    n <- parseIdent 
+    _ <- parseSqBra
+    e <- parseInt 
+    _ <- parseSqKet 
+    _ <- parseColon 
+    t <- parseType 
+    _ <- parseSemi 
+    pure (LocalArrDecl n (ArrayType e t))
+
+parseExprStmt :: Parser Stmt 
+parseExprStmt = ExprStmt <$> parseExpr0
+
+parseIfStmt :: Parser Stmt 
+parseIfStmt = do 
+    _ <- parseIf
+    _ <- parseOpenParen 
+    c <- parseExpr0 
+    _ <- parseCloseParen 
+    b1 <- parseStmtBlock 
+    b2 <- parseElseBlock
+    pure (IfStmt c b1 b2)
+    where
+        parseElseBlock :: Parser [Stmt]
+        parseElseBlock = (parseElse *> parseStmtBlock) <|> pure []
 
 
-parseIdent :: Parser Token
-parseIdent = parseToken anyIdent
+-- TODO: Maybe find a way to make the unwrapping parsers nicer...
+parseIdent :: Parser T.Text
+parseIdent = Parser $ \tokens -> case uncons tokens of
+    Just (Token (TokIdent ident) _, ts) -> Just (ident, ts)
+    _                                   -> Nothing
+
+parseInt :: Parser Int
+parseInt = Parser $ \tokens -> case uncons tokens of
+    Just (Token (TokInt int) _, ts) -> Just (int, ts)
+    _                               -> Nothing
+
+parseFloat :: Parser Float
+parseFloat = Parser $ \tokens -> case uncons tokens of
+    Just (Token (TokFloat float) _, ts) -> Just (float, ts)
+    _                                   -> Nothing
+
+parseString :: Parser T.Text
+parseString = Parser $ \tokens -> case uncons tokens of
+    Just (Token (TokString string) _, ts) -> Just (string, ts)
+    _                                     -> Nothing
+
+parseChar :: Parser Char
+parseChar = Parser $ \tokens -> case uncons tokens of
+    Just (Token (TokChar char) _, ts) -> Just (char, ts)
+    _                                 -> Nothing
+
+parseType :: Parser Type
+parseType = matchType <$> parseIdent
 
 parseIf :: Parser Token
 parseIf = parseToken TokIf
@@ -158,18 +314,6 @@ parseContinue = parseToken TokContinue
 
 parseReturn :: Parser Token
 parseReturn = parseToken TokReturn
-
-parseInt :: Parser Token
-parseInt = parseToken anyInt
-
-parseFloat :: Parser Token
-parseFloat = parseToken anyFloat
-
-parseString :: Parser Token
-parseString = parseToken anyString
-
-parseChar :: Parser Token
-parseChar = parseToken anyChar
 
 parsePlus :: Parser Token
 parsePlus = parseToken TokPlus

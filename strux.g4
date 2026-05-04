@@ -51,6 +51,7 @@ stmtList
 
 stmt
  : varDecl
+ | arrayDecl
  | exprStmt
  | ifStmt
  | forStmt
