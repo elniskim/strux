@@ -128,8 +128,8 @@ expr5
  ;
 
 primary
- : '(' expr0 ')'
- | Identifier
+ : '(' expr0 ')' 
+ | Identifier 
  | literal 
  ;
 

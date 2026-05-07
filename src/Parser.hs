@@ -9,6 +9,7 @@ import Lexer
 import Data.Data (toConstr)
 import qualified Data.Text as T
 import Data.List (uncons)
+import Data.Foldable (foldl')
 import Control.Applicative (many, some, optional, Alternative(..))
 
 newtype Parser a = Parser {
@@ -71,30 +72,30 @@ data Stmt
     | ContinueStmt
 
 data Expr
-    = Binary         { binaryOp :: BinOp, left :: Expr, right :: Expr }
-    | Unary          { unaryOp :: UnaryOp, right :: Expr }
-    | FunctionCall   { funcName :: Expr, arguments :: [Expr] }
-    | ArrayIndex     { arrName :: Expr, index :: Expr }
-    | StructDeref    { structName :: Expr, fieldName :: T.Text }
-    | Primary        { atom :: Atom }
-
-data Atom
-    = Symbol            { symbolName :: T.Text, varType :: Type }
+    = BinaryExpr        { binaryOp :: Op, left :: Expr, right :: Expr }
+    | UnaryExpr         { unaryOp :: Op, right :: Expr }
+    | FunctionCall      { funcName :: Expr, arguments :: [Expr] }
+    | ArrayIndex        { arrName :: Expr, index :: Expr }
+    | StructDeref       { structName :: Expr, fieldName :: T.Text }
+    | Primary           { atom :: Atom }
+    | Symbol            { symbolName :: T.Text }
     | IntLiteral        { intVal :: Int }
     | FloatLiteral      { floatVal :: Float }
+    | BoolLiteral       { boolVal :: Bool }
     | CharLiteral       { charVal :: Char }
     | StringLiteral     { strVal :: T.Text }
     | GroupedExpression { inParens :: Expr }
 
-data BinOp
-    = GT
-    | GE
-    | LT
-    | LE
-    | EQ
-    | NEQ
+data Op
+    = ASSIGN
+    | COMPGT
+    | COMPGE
+    | COMPLT
+    | COMPLE
+    | COMPEQ
+    | COMPNEQ
     | ADD
-    | SUB
+    | SUB -- this one is also allowed to be a unary operator, remember for semantics
     | LOGOR
     | BITOR
     | MULT
@@ -102,10 +103,7 @@ data BinOp
     | MOD
     | LOGAND
     | BITAND
-
-data UnaryOp
-    = NOT
-    | NEG
+    | UNARYNEG
 
 data Type
     = IntType
@@ -238,7 +236,7 @@ parseLocalArrDecl = do
     pure (LocalArrDecl n (ArrayType e t))
 
 parseExprStmt :: Parser Stmt
-parseExprStmt = ExprStmt <$> parseExpr0
+parseExprStmt = ExprStmt <$> (parseExpr0 <* parseSemi)
 
 parseIfStmt :: Parser Stmt
 parseIfStmt = do
@@ -269,21 +267,147 @@ parseForStmt = do
         parsePart' :: Parser (Maybe Expr)
         parsePart' = (Just <$> parseExpr0 <* parseSemi) <|> pure Nothing
 
-parseWhileStmt :: Parser Stmt 
-parseWhileStmt = do 
-    _ <- parseWhile 
-    _ <- parseOpenParen 
+parseWhileStmt :: Parser Stmt
+parseWhileStmt = do
+    _ <- parseWhile
+    _ <- parseOpenParen
     c <- parseExpr0
-    _ <- parseCloseParen 
-    ss <- parseStmtBlock 
+    _ <- parseCloseParen
+    ss <- parseStmtBlock
     pure (WhileStmt c ss)
 
-parseReturnStmt :: Parser Stmt 
-parseReturnStmt = do 
-    _ <- parseReturn 
+parseReturnStmt :: Parser Stmt
+parseReturnStmt = do
+    _ <- parseReturn
     e <- (Just <$> parseExpr0 <* parseSemi) <|> (parseSemi *> pure Nothing)
     pure (ReturnStmt e)
 
+parseBreakStmt :: Parser Stmt
+parseBreakStmt = parseBreak *> pure ContinueStmt
+
+parseContinueStmt :: Parser Stmt
+parseContinueStmt = parseContinue *> pure ContinueStmt
+
+parseOpChain :: Parser Op -> Parser Expr -> Parser [(Op, Expr)]
+parseOpChain opParser exprParser = many ((,) <$> opParser <*> exprParser)
+
+chainExpr :: Expr -> (Op, Expr) -> Expr
+chainExpr e1 (op, e2) = BinaryExpr op e1 e2
+
+parseExpr0 :: Parser Expr
+parseExpr0 = do
+    lval  <- parseExpr1
+    rval' <- optional (parseAssign *> parseExpr1)
+    case rval' of
+        Just rval -> pure $ BinaryExpr ASSIGN lval rval
+        Nothing   -> pure lval
+
+parseExpr1 :: Parser Expr
+parseExpr1 = do
+    root <- parseExpr2
+    chain <- parseOpChain parseOp1 parseExpr2
+    pure (foldl' chainExpr root chain)
+
+parseOp1 :: Parser Op
+parseOp1 = parseGE <|> parseLE <|> parseEq <|> parseNEq <|> parseGT <|> parseLT
+
+parseExpr2 :: Parser Expr
+parseExpr2 = do
+    root <- parseExpr3
+    chain <- parseOpChain parseOp2 parseExpr3
+    pure (foldl' chainExpr root chain)
+
+parseOp2 :: Parser Op
+parseOp2 = parsePlus <|> parseMinus <|> parseLogOr <|> parseBitOr
+
+parseExpr3 :: Parser Expr
+parseExpr3 = do
+    root <- parseExpr4
+    chain <- parseOpChain parseOp3 parseExpr4
+    pure (foldl' chainExpr root chain)
+
+parseOp3 :: Parser Op
+parseOp3 = parseMult <|> parseDiv <|> parseMod <|> parseLogAnd <|> parseBitAnd
+
+parseExpr4 :: Parser Expr
+parseExpr4 = parseUnaryNegate <|> parseUnaryNot <|> parseExpr5
+    where
+        parseUnaryNegate :: Parser Expr
+        parseUnaryNegate = UnaryExpr <$> parseMinus <*> parseExpr4
+        parseUnaryNot :: Parser Expr
+        parseUnaryNot = UnaryExpr <$> parseNot <*> parseExpr4
+
+parseExpr5 :: Parser Expr
+parseExpr5 = do
+    root <- parsePrimary
+    chain <- many parsePostfix
+    pure (foldl' chainPostfix root chain)
+        where
+            chainPostfix :: Expr -> (Expr -> Expr) -> Expr
+            chainPostfix expr postfix = postfix expr
+
+parsePostfix :: Parser (Expr -> Expr)
+parsePostfix = parseArrayIndex <|> parseStructDeref <|> parseFuncCall
+
+parseArrayIndex :: Parser (Expr -> Expr)
+parseArrayIndex = do
+    _ <- parseSqBra
+    i <- parseExpr0
+    _ <- parseSqKet
+    pure (`ArrayIndex` i)
+
+parseStructDeref :: Parser (Expr -> Expr)
+parseStructDeref = do 
+    _ <- parseArrow
+    attr <- parseIdent 
+    pure (`StructDeref` attr)
+
+parseFuncCall :: Parser (Expr -> Expr)
+parseFuncCall = do 
+    _ <- parseOpenParen 
+    arglist <- parseExprList 
+    _ <- parseCloseParen
+    pure (`FunctionCall` arglist)
+
+parseExprList :: Parser [Expr]
+parseExprList = parseExprs <|> pure []
+    where 
+        parseExprs :: Parser [Expr]
+        parseExprs = do 
+            first <- parseExpr0
+            rest <- many (parseComma *> parseExpr0)
+            pure(first : rest)
+
+parsePrimary :: Parser Expr
+parsePrimary = parseGroupedExpr <|> parseSymbol <|> parseLiteral 
+
+parseGroupedExpr :: Parser Expr 
+parseGroupedExpr = do 
+    _ <- parseOpenParen 
+    expr <- parseExpr0 
+    _ <- parseCloseParen 
+    pure (GroupedExpression expr)
+
+parseSymbol :: Parser Expr
+parseSymbol = Symbol <$> parseIdent
+
+parseLiteral :: Parser Expr
+parseLiteral = parseIntLiteral <|> parseFloatLiteral <|> parseBoolLiteral <|> parseCharLiteral <|> parseStringLiteral
+
+parseIntLiteral :: Parser Expr
+parseIntLiteral = IntLiteral <$> parseInt 
+
+parseFloatLiteral :: Parser Expr
+parseFloatLiteral = FloatLiteral <$> parseFloat 
+
+parseBoolLiteral :: Parser Expr
+parseBoolLiteral = (parseTrue *> pure (BoolLiteral True)) <|> (parseFalse *> pure (BoolLiteral False))
+
+parseCharLiteral :: Parser Expr 
+parseCharLiteral = CharLiteral <$> parseChar 
+
+parseStringLiteral :: Parser Expr 
+parseStringLiteral = StringLiteral <$> parseString
 
 -- TODO: Maybe find a way to make the unwrapping parsers nicer...
 parseIdent :: Parser T.Text
@@ -347,56 +471,59 @@ parseContinue = parseToken TokContinue
 parseReturn :: Parser Token
 parseReturn = parseToken TokReturn
 
-parsePlus :: Parser Token
-parsePlus = parseToken TokPlus
+parsePlus :: Parser Op
+parsePlus = parseToken TokPlus *> pure ADD
 
-parseMinus :: Parser Token
-parseMinus = parseToken TokMinus
+parseMinus :: Parser Op
+parseMinus = parseToken TokMinus *> pure SUB
 
-parseMult :: Parser Token
-parseMult = parseToken TokMult
+parseMult :: Parser Op
+parseMult = parseToken TokMult *> pure MULT
 
-parseDiv :: Parser Token
-parseDiv = parseToken TokDiv
+parseDiv :: Parser Op
+parseDiv = parseToken TokDiv *> pure DIV
 
-parseMod :: Parser Token
-parseMod = parseToken TokMod
+parseMod :: Parser Op
+parseMod = parseToken TokMod *> pure MOD
 
-parseEq :: Parser Token
-parseEq = parseToken TokEq
+parseEq :: Parser Op
+parseEq = parseToken TokEq *> pure COMPEQ
 
-parseNEq :: Parser Token
-parseNEq = parseToken TokNEq
+parseNEq :: Parser Op
+parseNEq = parseToken TokNEq *> pure COMPNEQ
 
-parseGT :: Parser Token
-parseGT = parseToken TokGT
+parseGT :: Parser Op
+parseGT = parseToken TokGT *> pure COMPGT
 
-parseGE :: Parser Token
-parseGE = parseToken TokGE
+parseGE :: Parser Op
+parseGE = parseToken TokGE *> pure COMPGE
 
-parseLT :: Parser Token
-parseLT = parseToken TokLT
+parseLT :: Parser Op
+parseLT = parseToken TokLT *> pure COMPLT
 
-parseLE :: Parser Token
-parseLE = parseToken TokLE
+parseLE :: Parser Op
+parseLE = parseToken TokLE *> pure COMPLE
 
-parseAssign :: Parser Token
-parseAssign = parseToken TokAssign
+parseAssign :: Parser Op
+parseAssign = parseToken TokAssign *> pure ASSIGN
 
 parseArrow :: Parser Token
 parseArrow = parseToken TokArrow
 
-parseBitAnd :: Parser Token
-parseBitAnd = parseToken TokBitAnd
+parseBitAnd :: Parser Op
+parseBitAnd = parseToken TokBitAnd *> pure BITAND
 
-parseLogAnd :: Parser Token
-parseLogAnd = parseToken TokLogAnd
+parseLogAnd :: Parser Op
+parseLogAnd = parseToken TokLogAnd *> pure LOGAND
 
-parseBitOr :: Parser Token
-parseBitOr = parseToken TokBitOr
+parseBitOr :: Parser Op
+parseBitOr = parseToken TokBitOr *> pure BITOR
 
-parseNot :: Parser Token
-parseNot = parseToken TokNot
+parseLogOr :: Parser Op
+parseLogOr = parseToken TokLogOr *> pure LOGOR
+
+parseNot :: Parser Op
+parseNot = parseToken TokNot *> pure UNARYNOT
 
 parseSqBra :: Parser Token
 parseSqBra = parseToken TokSqBra
