@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{- HLINT ignore "Use $>" -}
 {- HLINT ignore "Use <$>" -}
 {- HLINT ignore "Use lambda-case" -}
 {- HLINT ignore "Use newtype instead of data" -}
@@ -47,27 +48,27 @@ data Program = Program {
     declList :: [Decl]
 }
 
-data Argument = Argument { 
-    argName :: T.Text, 
-    argType :: Type 
+data Argument = Argument {
+    argName :: T.Text,
+    argType :: Type
 }
 
 data Decl
-    = GlobalVarDecl   { globalName :: T.Text, globalType :: Type } 
-    | GlobalArrDecl   { globalArrDeclName :: T.Text, globalArrType :: Type } 
-    | FuncDef         { funcDeclName :: T.Text, returnType :: Type, args :: [Argument], funcBody :: [Stmt] } 
-    | StructDef       { strucDecltName :: T.Text, attributes :: [Decl] } 
+    = GlobalVarDecl   { globalName :: T.Text, globalType :: Type }
+    | GlobalArrDecl   { globalArrDeclName :: T.Text, globalArrType :: Type }
+    | FuncDef         { funcDeclName :: T.Text, returnType :: Type, args :: [Argument], funcBody :: [Stmt] }
+    | StructDef       { strucDecltName :: T.Text, attributes :: [Decl] }
 
 data Stmt
-    = LocalVarDecl   { localName :: T.Text, localType :: Type } 
-    | LocalArrDecl   { localArrDeclName :: T.Text, localArrType :: Type } 
-    | ExprStmt       { expression :: Expr } 
-    | IfStmt         { cond :: Expr, ifBlock :: [Stmt], elseBlock :: [Stmt] } 
-    | ForStmt        { initial :: Maybe Expr, forCondition :: Maybe Expr, increment :: Maybe Expr, forBody :: [Stmt] } 
-    | WhileStmt      { whileCondition :: Expr, whileBody :: [Stmt] } 
-    | ReturnStmt     { retVal :: Maybe Expr } 
-    | BreakStmt 
-    | ContinueStmt 
+    = LocalVarDecl   { localName :: T.Text, localType :: Type }
+    | LocalArrDecl   { localArrDeclName :: T.Text, localArrType :: Type }
+    | ExprStmt       { expression :: Expr }
+    | IfStmt         { cond :: Expr, ifBlock :: [Stmt], elseBlock :: [Stmt] }
+    | ForStmt        { initial :: Maybe Expr, forCondition :: Maybe Expr, increment :: Maybe Expr, forBody :: [Stmt] }
+    | WhileStmt      { whileCondition :: Expr, whileBody :: [Stmt] }
+    | ReturnStmt     { retVal :: Maybe Expr }
+    | BreakStmt
+    | ContinueStmt
 
 data Expr
     = Binary         { binaryOp :: BinOp, left :: Expr, right :: Expr }
@@ -181,17 +182,17 @@ parseParamList :: Parser [Argument]
 parseParamList = parseParams <|> pure []
     where
         parseParams :: Parser [Argument]
-        parseParams = do 
+        parseParams = do
             first <- parseParam
             rest <- parseRest
             pure (first : rest)
         parseParam :: Parser Argument
-        parseParam = do 
+        parseParam = do
             n <- parseIdent
-            _ <- parseColon 
+            _ <- parseColon
             t <- parseType
             pure (Argument n t)
-        parseRest :: Parser [Argument] 
+        parseRest :: Parser [Argument]
         parseRest = many (parseComma *> parseParam)
 
 parseStructDef :: Parser Decl
@@ -207,50 +208,81 @@ parseStructDef = do
         parseAttr = parseGlobalVarDecl <|> parseGlobalArrayDecl <|> parseStructDef
 
 parseStmtBlock :: Parser [Stmt]
-parseStmtBlock = do 
+parseStmtBlock = do
     _ <- parseCrBra
-    ss <- many parseStmt 
+    ss <- many parseStmt
     _ <- parseCrKet
     pure ss
 
-parseStmt :: Parser Stmt 
-parseStmt = parseLocalVarDecl <|> parseLocalArrDecl <|> parseExprStmt <|> parseIfStmt <|> 
-    parseFor <|> parseWhile <|> parseReturn <|> parseBreak <|> parseContinue 
+parseStmt :: Parser Stmt
+parseStmt = parseLocalVarDecl <|> parseLocalArrDecl <|> parseExprStmt <|> parseIfStmt <|>
+    parseForStmt <|> parseWhileStmt <|> parseReturnStmt <|> parseBreakStmt <|> parseContinueStmt
 
-parseLocalVarDecl :: Parser Stmt 
-parseLocalVarDecl = do 
-    n <- parseIdent 
-    _ <- parseColon 
-    t <- parseType 
-    _ <- parseSemi 
+parseLocalVarDecl :: Parser Stmt
+parseLocalVarDecl = do
+    n <- parseIdent
+    _ <- parseColon
+    t <- parseType
+    _ <- parseSemi
     pure (LocalVarDecl n t)
 
-parseLocalArrDecl :: Parser Stmt 
-parseLocalArrDecl = do 
-    n <- parseIdent 
+parseLocalArrDecl :: Parser Stmt
+parseLocalArrDecl = do
+    n <- parseIdent
     _ <- parseSqBra
-    e <- parseInt 
-    _ <- parseSqKet 
-    _ <- parseColon 
-    t <- parseType 
-    _ <- parseSemi 
+    e <- parseInt
+    _ <- parseSqKet
+    _ <- parseColon
+    t <- parseType
+    _ <- parseSemi
     pure (LocalArrDecl n (ArrayType e t))
 
-parseExprStmt :: Parser Stmt 
+parseExprStmt :: Parser Stmt
 parseExprStmt = ExprStmt <$> parseExpr0
 
-parseIfStmt :: Parser Stmt 
-parseIfStmt = do 
+parseIfStmt :: Parser Stmt
+parseIfStmt = do
     _ <- parseIf
-    _ <- parseOpenParen 
-    c <- parseExpr0 
-    _ <- parseCloseParen 
-    b1 <- parseStmtBlock 
+    _ <- parseOpenParen
+    c <- parseExpr0
+    _ <- parseCloseParen
+    b1 <- parseStmtBlock
     b2 <- parseElseBlock
     pure (IfStmt c b1 b2)
     where
         parseElseBlock :: Parser [Stmt]
         parseElseBlock = (parseElse *> parseStmtBlock) <|> pure []
+
+parseForStmt :: Parser Stmt
+parseForStmt = do
+    _ <- parseFor
+    _ <- parseOpenParen
+    forInit <- parsePart
+    forCond <- parsePart
+    forIncr <- parsePart'
+    _ <- parseCloseParen
+    ss <- parseStmtBlock
+    pure (ForStmt forInit forCond forIncr ss)
+    where
+        parsePart :: Parser (Maybe Expr)
+        parsePart = (Just <$> parseExpr0 <* parseSemi) <|> (parseSemi *> pure Nothing)
+        parsePart' :: Parser (Maybe Expr)
+        parsePart' = (Just <$> parseExpr0 <* parseSemi) <|> pure Nothing
+
+parseWhileStmt :: Parser Stmt 
+parseWhileStmt = do 
+    _ <- parseWhile 
+    _ <- parseOpenParen 
+    c <- parseExpr0
+    _ <- parseCloseParen 
+    ss <- parseStmtBlock 
+    pure (WhileStmt c ss)
+
+parseReturnStmt :: Parser Stmt 
+parseReturnStmt = do 
+    _ <- parseReturn 
+    e <- (Just <$> parseExpr0 <* parseSemi) <|> (parseSemi *> pure Nothing)
+    pure (ReturnStmt e)
 
 
 -- TODO: Maybe find a way to make the unwrapping parsers nicer...
