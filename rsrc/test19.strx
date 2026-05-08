@@ -1,7 +1,7 @@
-# Testing for loops.
+<># Testing for loops.
 
 def main() -> void {
-    arr[5]: Int;
+    arr: Int[5];
     i: Int;
 
     for (i = 0; i < 5; i = i + 1) {

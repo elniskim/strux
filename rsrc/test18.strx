@@ -15,7 +15,7 @@ def main() -> void {
     if (cond2) {
         res2 = 0;
     } else {
-        res1 = 1;
+        res2 = 1;
     }
 
     printInt(res1);

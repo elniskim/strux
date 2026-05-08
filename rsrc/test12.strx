@@ -1,6 +1,6 @@
 # Testing boolean operators.
 
-def main -> void {
+def main() -> void {
     a: Bool;
     b: Bool;
     a = True;

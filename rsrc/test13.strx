@@ -1,9 +1,9 @@
 # Testing function calling.
 
-def func -> void {
+def func() -> void {
     printString("Hello, world!");
 }
 
-def main -> void {
+def main() -> void {
     func();
 }

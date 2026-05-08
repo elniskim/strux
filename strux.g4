@@ -21,7 +21,7 @@ varDecl
  ;
 
 arrayDecl
- : Identifier '[' Integer ']' ':' type ';'
+ : Identifier ':' type '[' Integer ']' ';'
  ;
 
 funcDef

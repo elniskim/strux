@@ -1,7 +1,7 @@
 # Testing companion structs.
 
 struct Vault {
-    code[4]: Char;
+    code: Char[4];
     struct money {
         numBills: Int;
         totalValue: Float;

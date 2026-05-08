@@ -3,7 +3,7 @@
 struct Test {
     a: Int;
     b: Bool;
-    c[10]: Char;
+    c: Char[10];
 }
 
 def main -> void {
