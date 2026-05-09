@@ -1,0 +1,5 @@
+def main() -> void {
+	local: int;
+	(local = 5);
+	printInt(local);
+}

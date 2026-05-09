@@ -1,5 +1,5 @@
 # Testing comments and non-returning void functions!
 
-def main() -> {
+def main() -> void {
     
 }

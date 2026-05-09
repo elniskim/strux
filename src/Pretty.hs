@@ -25,8 +25,8 @@ instance Pretty Decl where
     pretty i GlobalArrDecl { globalArrDeclName = name, globalArrType = arrType } =
         indent i <> name <> ": " <> pretty 0 arrType <> ";"
     pretty i FuncDef { funcDeclName = name, returnType = retType, args = argList, funcBody = stmts } =
-        indent i <> "def " <> name <> "(" <> T.intercalate ", " (map (pretty 0) argList) <> ") -> " <> pretty 0 retType <> "{\n" <>
-            T.intercalate "\n" (map (pretty 0) stmts) <> indent i <> "\n}"
+        indent i <> "def " <> name <> "(" <> T.intercalate ", " (map (pretty 0) argList) <> ") -> " <> pretty 0 retType <> " {\n" <>
+            T.intercalate "\n" (map (pretty (i+1)) stmts) <> indent i <> "\n}"
     pretty i StructDef { structDeclName = name, attributes = attrs } =
         indent i <> "struct " <> name <> "{\n" <> T.intercalate "\n" (map (pretty (i+1)) attrs) <> indent i <> "}"
 
@@ -68,7 +68,7 @@ instance Pretty Expr where
     pretty _ FloatLiteral { floatVal = val } = T.pack (show val)
     pretty _ BoolLiteral { boolVal = val } = T.pack (show val)
     pretty _ CharLiteral { charVal = val } = T.pack (show val)
-    pretty _ StringLiteral { strVal = val } = val 
+    pretty _ StringLiteral { strVal = val } = "\"" <> val <> "\"" 
     pretty _ GroupedExpression { inParens = expr } = "(" <> pretty 0 expr <> ")"
 
 instance Pretty Op where 
