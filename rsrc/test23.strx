@@ -6,7 +6,7 @@ struct Test {
     boolean: Bool;
 }
 
-def main -> void {
+def main() -> void {
     test: Test;
 
     test->int1 = 5;

@@ -10,9 +10,10 @@ main = do
     args <- getArgs
     let file = head args
     code <- TIO.readFile file
+    _ <- TIO.writeFile "golden/output.strx" (code <> "\n-----\n")
     let tokens = lexStrux code
     print $ show tokens 
     let parseTree = parseStrux tokens
     case parseTree of
-        Just tree -> TIO.writeFile "golden/output.strx" (pretty 0 tree)
+        Just tree -> TIO.appendFile "golden/output.strx" (pretty 0 tree)
         Nothing   -> putStrLn "bro what"

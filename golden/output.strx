@@ -1,5 +1,42 @@
+# Testing companion structs.
+
+struct Vault {
+    code: Char[4];
+    struct money {
+        numBills: Int;
+        totalValue: Float;
+    }
+}
+
 def main() -> void {
-	local: int;
-	(local = 5);
-	printInt(local);
+    vault: Vault;
+
+    vault->code[0] = '4';
+    vault->code[1] = '6';
+    vault->code[2] = '8';
+    vault->code[3] = '0';
+
+    vault->money->numBills = 100;
+    vault->money->totalValue = 8000000.67;
+
+    printInt(vault->money->numBills);
+}
+-----
+struct Vault {
+	code: Char[4];
+	struct money {
+		numBills: Int;
+		totalValue: Float;
+	}
+}
+
+def main() -> void {
+	vault: Vault;
+	(((vault->code)[0]) = '4');
+	(((vault->code)[1]) = '6');
+	(((vault->code)[2]) = '8');
+	(((vault->code)[3]) = '0');
+	(((vault->money)->numBills) = 100);
+	(((vault->money)->totalValue) = 8000000.5);
+	(printInt(((vault->money)->numBills)));
 }

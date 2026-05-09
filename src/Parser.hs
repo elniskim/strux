@@ -159,11 +159,11 @@ parseLocalVarDecl = do
 parseLocalArrDecl :: Parser Stmt
 parseLocalArrDecl = do
     n <- parseIdent
+    _ <- parseColon
+    t <- parseType
     _ <- parseSqBra
     e <- parseInt
     _ <- parseSqKet
-    _ <- parseColon
-    t <- parseType
     _ <- parseSemi
     pure (LocalArrDecl n (ArrayType e t))
 
@@ -197,7 +197,7 @@ parseForStmt = do
         parsePart :: Parser (Maybe Expr)
         parsePart = (Just <$> parseExpr0 <* parseSemi) <|> (parseSemi *> pure Nothing)
         parsePart' :: Parser (Maybe Expr)
-        parsePart' = (Just <$> parseExpr0 <* parseSemi) <|> pure Nothing
+        parsePart' = optional parseExpr0
 
 parseWhileStmt :: Parser Stmt
 parseWhileStmt = do
@@ -215,10 +215,10 @@ parseReturnStmt = do
     pure (ReturnStmt e)
 
 parseBreakStmt :: Parser Stmt
-parseBreakStmt = parseBreak *> pure ContinueStmt
+parseBreakStmt = parseBreak *> parseSemi *> pure BreakStmt
 
 parseContinueStmt :: Parser Stmt
-parseContinueStmt = parseContinue *> pure ContinueStmt
+parseContinueStmt = parseContinue *> parseSemi *> pure ContinueStmt
 
 parseOpChain :: Parser Op -> Parser Expr -> Parser [(Op, Expr)]
 parseOpChain opParser exprParser = many ((,) <$> opParser <*> exprParser)
@@ -289,35 +289,35 @@ parseArrayIndex = do
     pure (`ArrayIndex` i)
 
 parseStructDeref :: Parser (Expr -> Expr)
-parseStructDeref = do 
+parseStructDeref = do
     _ <- parseArrow
-    attr <- parseIdent 
+    attr <- parseIdent
     pure (`StructDeref` attr)
 
 parseFuncCall :: Parser (Expr -> Expr)
-parseFuncCall = do 
-    _ <- parseOpenParen 
-    arglist <- parseExprList 
+parseFuncCall = do
+    _ <- parseOpenParen
+    arglist <- parseExprList
     _ <- parseCloseParen
     pure (`FunctionCall` arglist)
 
 parseExprList :: Parser [Expr]
 parseExprList = parseExprs <|> pure []
-    where 
+    where
         parseExprs :: Parser [Expr]
-        parseExprs = do 
+        parseExprs = do
             first <- parseExpr0
             rest <- many (parseComma *> parseExpr0)
-            pure(first : rest)
+            pure (first : rest)
 
 parsePrimary :: Parser Expr
-parsePrimary = parseGroupedExpr <|> parseSymbol <|> parseLiteral 
+parsePrimary = parseGroupedExpr <|> parseSymbol <|> parseLiteral
 
-parseGroupedExpr :: Parser Expr 
-parseGroupedExpr = do 
-    _ <- parseOpenParen 
-    expr <- parseExpr0 
-    _ <- parseCloseParen 
+parseGroupedExpr :: Parser Expr
+parseGroupedExpr = do
+    _ <- parseOpenParen
+    expr <- parseExpr0
+    _ <- parseCloseParen
     pure (GroupedExpression expr)
 
 parseSymbol :: Parser Expr
@@ -327,18 +327,18 @@ parseLiteral :: Parser Expr
 parseLiteral = parseIntLiteral <|> parseFloatLiteral <|> parseBoolLiteral <|> parseCharLiteral <|> parseStringLiteral
 
 parseIntLiteral :: Parser Expr
-parseIntLiteral = IntLiteral <$> parseInt 
+parseIntLiteral = IntLiteral <$> parseInt
 
 parseFloatLiteral :: Parser Expr
-parseFloatLiteral = FloatLiteral <$> parseFloat 
+parseFloatLiteral = FloatLiteral <$> parseFloat
 
 parseBoolLiteral :: Parser Expr
 parseBoolLiteral = (parseTrue *> pure (BoolLiteral True)) <|> (parseFalse *> pure (BoolLiteral False))
 
-parseCharLiteral :: Parser Expr 
-parseCharLiteral = CharLiteral <$> parseChar 
+parseCharLiteral :: Parser Expr
+parseCharLiteral = CharLiteral <$> parseChar
 
-parseStringLiteral :: Parser Expr 
+parseStringLiteral :: Parser Expr
 parseStringLiteral = StringLiteral <$> parseString
 
 -- TODO: Maybe find a way to make the unwrapping parsers nicer...

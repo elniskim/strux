@@ -6,6 +6,6 @@ struct Test {
     c: Char[10];
 }
 
-def main -> void {
+def main() -> void {
 
 }

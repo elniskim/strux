@@ -1,4 +1,4 @@
-<># Testing for loops.
+# Testing for loops.
 
 def main() -> void {
     arr: Int[5];

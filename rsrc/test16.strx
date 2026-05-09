@@ -1,6 +1,6 @@
 # Testing arrays.
 
-def main -> void {
+def main() -> void {
     arr: Int[5];
     arr[0] = 0;
     arr[1] = 1;

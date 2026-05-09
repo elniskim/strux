@@ -28,7 +28,7 @@ instance Pretty Decl where
         indent i <> "def " <> name <> "(" <> T.intercalate ", " (map (pretty 0) argList) <> ") -> " <> pretty 0 retType <> " {\n" <>
             T.intercalate "\n" (map (pretty (i+1)) stmts) <> indent i <> "\n}"
     pretty i StructDef { structDeclName = name, attributes = attrs } =
-        indent i <> "struct " <> name <> "{\n" <> T.intercalate "\n" (map (pretty (i+1)) attrs) <> indent i <> "}"
+        indent i <> "struct " <> name <> " {\n" <> T.intercalate "\n" (map (pretty (i+1)) attrs) <> "\n" <> indent i <> "}"
 
 instance Pretty Stmt where
     pretty i LocalVarDecl { localName = name, localType = varType } = 
@@ -40,13 +40,13 @@ instance Pretty Stmt where
     pretty i IfStmt { cond = condition, ifBlock = b1, elseBlock = [] } = 
         indent i <> "if (" <> pretty 0 condition <> ") {\n" <> T.intercalate "\n" (map (pretty (i+1)) b1) <> indent i <> "}"
     pretty i IfStmt { cond = condition, ifBlock = b1, elseBlock = b2 } = 
-        indent i <> "if (" <> pretty 0 condition <> ") {\n" <> T.intercalate "\n" (map (pretty (i+1)) b1) <> indent i <> "\n}" <>
-            indent i <> "else {\n" <> T.intercalate "\n" (map (pretty (i+1)) b2) <> indent i <> "}"
+        indent i <> "if (" <> pretty 0 condition <> ") {\n" <> T.intercalate "\n" (map (pretty (i+1)) b1) <> indent i <> "\n" <>
+            indent i <> "} else {\n" <> T.intercalate "\n" (map (pretty (i+1)) b2) <> "\n" <> indent i <> "}"
     pretty i ForStmt { initial = first, forCondition = condition, increment = incr, forBody = stmts } = 
-        indent i <> "for (" <> maybePretty 0 first <> "; " <> maybePretty 0 condition <> "; " <> maybePretty 0 incr <> ") {" <>
+        indent i <> "for (" <> maybePretty 0 first <> "; " <> maybePretty 0 condition <> "; " <> maybePretty 0 incr <> ") {\n" <>
             T.intercalate "\n" (map (pretty (i+1)) stmts) <> "\n" <> indent i <> "}"
     pretty i WhileStmt { whileCondition = condition, whileBody = stmts } = 
-        indent i <> "while (" <> pretty 0 condition <> ") {\n" <> T.intercalate "\n" (map (pretty (i+1)) stmts) <> indent i <> "}"
+        indent i <> "while (" <> pretty 0 condition <> ") {\n" <> T.intercalate "\n" (map (pretty (i+1)) stmts) <> indent i <> "\n" <> indent i <> "}"
     pretty i ReturnStmt { retVal = Nothing } = indent i <> "return;"
     pretty i ReturnStmt { retVal = (Just expr) } = indent i <> "return " <> pretty (i+1) expr <> ";"
     pretty i BreakStmt = indent i <> "break;"
@@ -58,11 +58,11 @@ instance Pretty Expr where
     pretty _ UnaryExpr { unaryOp = unOp, right = expr } = 
         "(" <> pretty 0 unOp <> pretty 0 expr <> ")"
     pretty _ FunctionCall { funcName = name, arguments = funcArgs } = 
-        pretty 0 name <> "(" <> T.intercalate ", " (map (pretty 0) funcArgs) <> ")"
+        "(" <>pretty 0 name <> "(" <> T.intercalate ", " (map (pretty 0) funcArgs) <> "))" 
     pretty _ ArrayIndex { arrName = name, index = expr } = 
-        pretty 0 name <> "[" <> pretty 0 expr <> "]"
+        "(" <> pretty 0 name <> "[" <> pretty 0 expr <> "]" <> ")"
     pretty _ StructDeref { structName = sname, fieldName = fname } = 
-        pretty 0 sname <> "->" <> fname 
+        "(" <> pretty 0 sname <> "->" <> fname <> ")"
     pretty _ Symbol { symbolName = name } = name
     pretty _ IntLiteral { intVal = val } = T.pack (show val) 
     pretty _ FloatLiteral { floatVal = val } = T.pack (show val)

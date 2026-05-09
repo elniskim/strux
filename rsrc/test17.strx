@@ -4,11 +4,11 @@ def main() -> void {
     cond: Bool;
     res: int;
     cond = True;
-    cond = 6
+    res = 6;
 
     if (cond) {
-        cond = 3;
+        rest = 3;
     }
 
-    printInt(cond);
+    printInt(res);
 }
