@@ -18,7 +18,7 @@ type instance XExpr   Parsed = ()
 type instance XStmt   Parsed = ()
 type instance XDecl   Parsed = ()
 
-type instance XSymbol Resolved = SymbolInfo
+type instance XSymbol Resolved = ResolvedInfo
 type instance XExpr   Resolved = ()
 type instance XStmt   Resolved = ()
 type instance XDecl   Resolved = ()
@@ -31,11 +31,13 @@ data SymbolKind
     | Parameter
     deriving (Show, Eq)
 
-data SymbolInfo = SymbolInfo
-    { symKind  :: SymbolKind
-    , symType  :: Type
-    , symDepth :: Int      -- scope depth, useful for IR gen later
-    } deriving (Show, Eq)
+type SymbolId = Int
+
+data ResolvedInfo = ResolvedInfo { 
+    symKind  :: SymbolKind,
+    symType  :: Type,
+    symId :: SymbolId
+} deriving (Show, Eq)
 
 data Program phase = Program {
     declList :: [Decl phase]
