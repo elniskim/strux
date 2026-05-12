@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TypeFamilies #-}
 {- HLINT ignore "Use $>" -}
 {- HLINT ignore "Use <$>" -}
 {- HLINT ignore "Use lambda-case" -}
@@ -67,17 +68,17 @@ matchToken type1 token =
     let type2 = tokenType token
     in toConstr type1 == toConstr type2
 
-parseStrux :: [Token] -> Maybe Program
+parseStrux :: [Token] -> Maybe (Program Parsed)
 parseStrux tokens =
     let output = runParser (many parseDecl) tokens
     in case output of
         Just (decls, []) -> Just (Program decls)
         _                -> Nothing
 
-parseDecl :: Parser Decl
+parseDecl :: Parser (Decl Parsed)
 parseDecl = parseGlobalVarDecl <|> parseGlobalArrayDecl <|> parseFuncDef <|> parseStructDef
 
-parseGlobalVarDecl :: Parser Decl
+parseGlobalVarDecl :: Parser (Decl Parsed)
 parseGlobalVarDecl = do
     n <- parseIdent
     _ <- parseColon
@@ -85,7 +86,7 @@ parseGlobalVarDecl = do
     _ <- parseSemi
     pure (GlobalVarDecl n t)
 
-parseGlobalArrayDecl :: Parser Decl
+parseGlobalArrayDecl :: Parser (Decl Parsed)
 parseGlobalArrayDecl = do
     n <- parseIdent
     _ <- parseColon
@@ -96,7 +97,7 @@ parseGlobalArrayDecl = do
     _ <- parseSemi
     pure (GlobalArrDecl n (ArrayType e t))
 
-parseFuncDef :: Parser Decl
+parseFuncDef :: Parser (Decl Parsed)
 parseFuncDef = do
     _ <- parseDef
     n <- parseIdent
@@ -125,7 +126,7 @@ parseParamList = parseParams <|> pure []
         parseRest :: Parser [Argument]
         parseRest = many (parseComma *> parseParam)
 
-parseStructDef :: Parser Decl
+parseStructDef :: Parser (Decl Parsed)
 parseStructDef = do
     _ <- parseStruct
     n <- parseIdent
@@ -134,21 +135,21 @@ parseStructDef = do
     _ <- parseCrKet
     pure (StructDef n ds)
     where
-        parseAttr :: Parser Decl
+        parseAttr :: Parser (Decl Parsed)
         parseAttr = parseGlobalVarDecl <|> parseGlobalArrayDecl <|> parseStructDef
 
-parseStmtBlock :: Parser [Stmt]
+parseStmtBlock :: Parser [Stmt Parsed]
 parseStmtBlock = do
     _ <- parseCrBra
     ss <- many parseStmt
     _ <- parseCrKet
     pure ss
 
-parseStmt :: Parser Stmt
+parseStmt :: Parser (Stmt Parsed)
 parseStmt = parseLocalVarDecl <|> parseLocalArrDecl <|> parseExprStmt <|> parseIfStmt <|>
     parseForStmt <|> parseWhileStmt <|> parseReturnStmt <|> parseBreakStmt <|> parseContinueStmt
 
-parseLocalVarDecl :: Parser Stmt
+parseLocalVarDecl :: Parser (Stmt Parsed)
 parseLocalVarDecl = do
     n <- parseIdent
     _ <- parseColon
@@ -156,7 +157,7 @@ parseLocalVarDecl = do
     _ <- parseSemi
     pure (LocalVarDecl n t)
 
-parseLocalArrDecl :: Parser Stmt
+parseLocalArrDecl :: Parser (Stmt Parsed)
 parseLocalArrDecl = do
     n <- parseIdent
     _ <- parseColon
@@ -167,10 +168,10 @@ parseLocalArrDecl = do
     _ <- parseSemi
     pure (LocalArrDecl n (ArrayType e t))
 
-parseExprStmt :: Parser Stmt
+parseExprStmt :: Parser (Stmt Parsed)
 parseExprStmt = ExprStmt <$> (parseExpr0 <* parseSemi)
 
-parseIfStmt :: Parser Stmt
+parseIfStmt :: Parser (Stmt Parsed)
 parseIfStmt = do
     _ <- parseIf
     _ <- parseOpenParen
@@ -180,10 +181,10 @@ parseIfStmt = do
     b2 <- parseElseBlock
     pure (IfStmt c b1 b2)
     where
-        parseElseBlock :: Parser [Stmt]
+        parseElseBlock :: Parser [Stmt Parsed]
         parseElseBlock = (parseElse *> parseStmtBlock) <|> pure []
 
-parseForStmt :: Parser Stmt
+parseForStmt :: Parser (Stmt Parsed)
 parseForStmt = do
     _ <- parseFor
     _ <- parseOpenParen
@@ -194,12 +195,12 @@ parseForStmt = do
     ss <- parseStmtBlock
     pure (ForStmt forInit forCond forIncr ss)
     where
-        parsePart :: Parser (Maybe Expr)
+        parsePart :: Parser (Maybe (Expr Parsed))
         parsePart = (Just <$> parseExpr0 <* parseSemi) <|> (parseSemi *> pure Nothing)
-        parsePart' :: Parser (Maybe Expr)
+        parsePart' :: Parser (Maybe (Expr Parsed))
         parsePart' = optional parseExpr0
 
-parseWhileStmt :: Parser Stmt
+parseWhileStmt :: Parser (Stmt Parsed)
 parseWhileStmt = do
     _ <- parseWhile
     _ <- parseOpenParen
@@ -208,33 +209,33 @@ parseWhileStmt = do
     ss <- parseStmtBlock
     pure (WhileStmt c ss)
 
-parseReturnStmt :: Parser Stmt
+parseReturnStmt :: Parser (Stmt Parsed)
 parseReturnStmt = do
     _ <- parseReturn
     e <- (Just <$> parseExpr0 <* parseSemi) <|> (parseSemi *> pure Nothing)
     pure (ReturnStmt e)
 
-parseBreakStmt :: Parser Stmt
+parseBreakStmt :: Parser (Stmt Parsed)
 parseBreakStmt = parseBreak *> parseSemi *> pure BreakStmt
 
-parseContinueStmt :: Parser Stmt
+parseContinueStmt :: Parser (Stmt Parsed)
 parseContinueStmt = parseContinue *> parseSemi *> pure ContinueStmt
 
-parseOpChain :: Parser Op -> Parser Expr -> Parser [(Op, Expr)]
+parseOpChain :: Parser Op -> Parser (Expr Parsed) -> Parser [(Op, Expr Parsed)]
 parseOpChain opParser exprParser = many ((,) <$> opParser <*> exprParser)
 
-chainExpr :: Expr -> (Op, Expr) -> Expr
-chainExpr e1 (op, e2) = BinaryExpr op e1 e2
+chainExpr :: Expr Parsed -> (Op, Expr Parsed) -> Expr Parsed
+chainExpr e1 (op, e2) = mkBinaryExpr op e1 e2
 
-parseExpr0 :: Parser Expr
+parseExpr0 :: Parser (Expr Parsed)
 parseExpr0 = do
     lval  <- parseExpr1
     rval' <- optional (parseAssign *> parseExpr1)
     case rval' of
-        Just rval -> pure $ BinaryExpr ASSIGN lval rval
+        Just rval -> pure $ mkBinaryExpr ASSIGN lval rval
         Nothing   -> pure lval
 
-parseExpr1 :: Parser Expr
+parseExpr1 :: Parser (Expr Parsed)
 parseExpr1 = do
     root <- parseExpr2
     chain <- parseOpChain parseOp1 parseExpr2
@@ -243,7 +244,7 @@ parseExpr1 = do
 parseOp1 :: Parser Op
 parseOp1 = parseGE <|> parseLE <|> parseEq <|> parseNEq <|> parseGT <|> parseLT
 
-parseExpr2 :: Parser Expr
+parseExpr2 :: Parser (Expr Parsed)
 parseExpr2 = do
     root <- parseExpr3
     chain <- parseOpChain parseOp2 parseExpr3
@@ -252,7 +253,7 @@ parseExpr2 = do
 parseOp2 :: Parser Op
 parseOp2 = parsePlus <|> parseMinus <|> parseLogOr <|> parseBitOr
 
-parseExpr3 :: Parser Expr
+parseExpr3 :: Parser (Expr Parsed)
 parseExpr3 = do
     root <- parseExpr4
     chain <- parseOpChain parseOp3 parseExpr4
@@ -261,85 +262,85 @@ parseExpr3 = do
 parseOp3 :: Parser Op
 parseOp3 = parseMult <|> parseDiv <|> parseMod <|> parseLogAnd <|> parseBitAnd
 
-parseExpr4 :: Parser Expr
+parseExpr4 :: Parser (Expr Parsed)
 parseExpr4 = parseUnaryNegate <|> parseUnaryNot <|> parseExpr5
     where
-        parseUnaryNegate :: Parser Expr
-        parseUnaryNegate = UnaryExpr <$> parseMinus <*> parseExpr4
-        parseUnaryNot :: Parser Expr
-        parseUnaryNot = UnaryExpr <$> parseNot <*> parseExpr4
+        parseUnaryNegate :: Parser (Expr Parsed)
+        parseUnaryNegate = mkUnaryExpr <$> parseMinus <*> parseExpr4
+        parseUnaryNot :: Parser (Expr Parsed)
+        parseUnaryNot = mkUnaryExpr <$> parseNot <*> parseExpr4
 
-parseExpr5 :: Parser Expr
+parseExpr5 :: Parser (Expr Parsed)
 parseExpr5 = do
     root <- parsePrimary
     chain <- many parsePostfix
     pure (foldl' chainPostfix root chain)
         where
-            chainPostfix :: Expr -> (Expr -> Expr) -> Expr
+            chainPostfix :: Expr Parsed -> (Expr Parsed -> Expr Parsed) -> Expr Parsed
             chainPostfix expr postfix = postfix expr
 
-parsePostfix :: Parser (Expr -> Expr)
+parsePostfix :: Parser (Expr Parsed -> Expr Parsed)
 parsePostfix = parseArrayIndex <|> parseStructDeref <|> parseFuncCall
 
-parseArrayIndex :: Parser (Expr -> Expr)
+parseArrayIndex :: Parser (Expr Parsed -> Expr Parsed)
 parseArrayIndex = do
     _ <- parseSqBra
     i <- parseExpr0
     _ <- parseSqKet
-    pure (`ArrayIndex` i)
+    pure (`mkArrayIndex` i)
 
-parseStructDeref :: Parser (Expr -> Expr)
+parseStructDeref :: Parser (Expr Parsed -> Expr Parsed)
 parseStructDeref = do
     _ <- parseArrow
     attr <- parseIdent
-    pure (`StructDeref` attr)
+    pure (`mkStructDeref` attr)
 
-parseFuncCall :: Parser (Expr -> Expr)
+parseFuncCall :: Parser (Expr Parsed -> Expr Parsed)
 parseFuncCall = do
     _ <- parseOpenParen
     arglist <- parseExprList
     _ <- parseCloseParen
-    pure (`FunctionCall` arglist)
+    pure (`mkFunctionCall` arglist)
 
-parseExprList :: Parser [Expr]
+parseExprList :: Parser [Expr Parsed]
 parseExprList = parseExprs <|> pure []
     where
-        parseExprs :: Parser [Expr]
+        parseExprs :: Parser [Expr Parsed]
         parseExprs = do
             first <- parseExpr0
             rest <- many (parseComma *> parseExpr0)
             pure (first : rest)
 
-parsePrimary :: Parser Expr
+parsePrimary :: Parser (Expr Parsed)
 parsePrimary = parseGroupedExpr <|> parseSymbol <|> parseLiteral
 
-parseGroupedExpr :: Parser Expr
+parseGroupedExpr :: Parser (Expr Parsed)
 parseGroupedExpr = do
     _ <- parseOpenParen
     expr <- parseExpr0
     _ <- parseCloseParen
-    pure (GroupedExpression expr)
+    pure (mkGroupedExpression expr)
 
-parseSymbol :: Parser Expr
-parseSymbol = Symbol <$> parseIdent
+parseSymbol :: Parser (Expr Parsed)
+parseSymbol = mkSymbol <$> parseIdent
 
-parseLiteral :: Parser Expr
+parseLiteral :: Parser (Expr Parsed)
 parseLiteral = parseIntLiteral <|> parseFloatLiteral <|> parseBoolLiteral <|> parseCharLiteral <|> parseStringLiteral
 
-parseIntLiteral :: Parser Expr
-parseIntLiteral = IntLiteral <$> parseInt
+parseIntLiteral :: Parser (Expr Parsed)
+parseIntLiteral = mkIntLiteral <$> parseInt
 
-parseFloatLiteral :: Parser Expr
-parseFloatLiteral = FloatLiteral <$> parseFloat
+parseFloatLiteral :: Parser (Expr Parsed)
+parseFloatLiteral = mkFloatLiteral <$> parseFloat
 
-parseBoolLiteral :: Parser Expr
-parseBoolLiteral = (parseTrue *> pure (BoolLiteral True)) <|> (parseFalse *> pure (BoolLiteral False))
+parseBoolLiteral :: Parser (Expr Parsed)
+parseBoolLiteral = (parseTrue *> pure (mkBoolLiteral True)) <|> (parseFalse *> pure (mkBoolLiteral False))
 
-parseCharLiteral :: Parser Expr
-parseCharLiteral = CharLiteral <$> parseChar
+parseCharLiteral :: Parser (Expr Parsed)
+parseCharLiteral = mkCharLiteral <$> parseChar
 
-parseStringLiteral :: Parser Expr
-parseStringLiteral = StringLiteral <$> parseString
+parseStringLiteral :: Parser (Expr Parsed)
+parseStringLiteral = mkStringLiteral <$> parseString
 
 -- TODO: Maybe find a way to make the unwrapping parsers nicer...
 parseIdent :: Parser T.Text
@@ -501,3 +502,40 @@ anyString = TokString ""
 
 anyChar :: TokenType
 anyChar = TokChar '\0'
+
+mkBinaryExpr :: Op -> Expr Parsed -> Expr Parsed -> Expr Parsed
+mkBinaryExpr op l r = BinaryExpr op l r ()
+
+mkUnaryExpr :: Op -> Expr Parsed -> Expr Parsed
+mkUnaryExpr op r = UnaryExpr op r ()
+
+mkFunctionCall :: Expr Parsed -> [Expr Parsed] -> Expr Parsed
+mkFunctionCall name exprs = FunctionCall name exprs ()
+
+mkArrayIndex :: Expr Parsed -> Expr Parsed -> Expr Parsed
+mkArrayIndex name i = ArrayIndex name i ()
+
+mkStructDeref :: Expr Parsed -> T.Text -> Expr Parsed
+mkStructDeref struct field = StructDeref struct field ()
+
+mkSymbol :: T.Text -> Expr Parsed
+mkSymbol name = Symbol name ()
+
+mkIntLiteral :: Int -> Expr Parsed
+mkIntLiteral val = IntLiteral val ()
+
+mkFloatLiteral :: Float -> Expr Parsed
+mkFloatLiteral val = FloatLiteral val ()
+
+mkBoolLiteral :: Bool -> Expr Parsed
+mkBoolLiteral val = BoolLiteral val ()
+
+mkCharLiteral :: Char -> Expr Parsed
+mkCharLiteral val = CharLiteral val ()
+
+mkStringLiteral :: T.Text -> Expr Parsed
+mkStringLiteral val = StringLiteral val ()
+
+mkGroupedExpression :: Expr Parsed -> Expr Parsed
+mkGroupedExpression expr = GroupedExpression expr ()
+

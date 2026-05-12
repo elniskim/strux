@@ -13,13 +13,13 @@ maybePretty i possible = case possible of { Nothing -> T.replicate i "\t"; Just 
 class Pretty a where
     pretty :: Int -> a -> T.Text
 
-instance Pretty Program where
+instance Pretty (Program phase) where
     pretty _ Program { declList = decls } = T.intercalate "\n\n" (map (pretty 0) decls)
 
 instance Pretty Argument where
     pretty _ Argument { argName = name, argType = paramType } = name <> ": " <> pretty 0 paramType
 
-instance Pretty Decl where
+instance Pretty (Decl phase) where
     pretty i GlobalVarDecl { globalName = name, globalType = varType } =
         indent i <> name <> ": " <> pretty 0 varType <> ";"
     pretty i GlobalArrDecl { globalArrDeclName = name, globalArrType = arrType } =
@@ -30,7 +30,7 @@ instance Pretty Decl where
     pretty i StructDef { structDeclName = name, attributes = attrs } =
         indent i <> "struct " <> name <> " {\n" <> T.intercalate "\n" (map (pretty (i+1)) attrs) <> "\n" <> indent i <> "}"
 
-instance Pretty Stmt where
+instance Pretty (Stmt phase) where
     pretty i LocalVarDecl { localName = name, localType = varType } = 
         indent i <> name <> ": " <> pretty 0 varType <> ";"
     pretty i LocalArrDecl { localArrDeclName = name, localArrType = arrType } = 
@@ -52,7 +52,7 @@ instance Pretty Stmt where
     pretty i BreakStmt = indent i <> "break;"
     pretty i ContinueStmt = indent i <> "continue;"
 
-instance Pretty Expr where 
+instance Pretty (Expr phase) where 
     pretty _ BinaryExpr { binaryOp = binOp, left = e1, right = e2 } = 
         "(" <> pretty 0 e1 <> " " <> pretty 0 binOp <> " " <> pretty 0 e2 <> ")"
     pretty _ UnaryExpr { unaryOp = unOp, right = expr } = 
