@@ -1,4 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE UndecidableInstances #-}
 module Pretty where
 
 import AST
@@ -13,13 +16,13 @@ maybePretty i possible = case possible of { Nothing -> T.replicate i "\t"; Just 
 class Pretty a where
     pretty :: Int -> a -> T.Text
 
-instance Pretty (Program phase) where
+instance Pretty (XAttr phase) => Pretty (Program phase) where
     pretty _ Program { declList = decls } = T.intercalate "\n\n" (map (pretty 0) decls)
 
 instance Pretty Argument where
     pretty _ Argument { argName = name, argType = paramType } = name <> ": " <> pretty 0 paramType
 
-instance Pretty (Decl phase) where
+instance Pretty (XAttr phase) => Pretty (Decl phase) where
     pretty i GlobalVarDecl { globalName = name, globalType = varType } =
         indent i <> name <> ": " <> pretty 0 varType <> ";"
     pretty i GlobalArrDecl { globalArrDeclName = name, globalArrType = arrType } =
@@ -29,6 +32,15 @@ instance Pretty (Decl phase) where
             T.intercalate "\n" (map (pretty (i+1)) stmts) <> indent i <> "\n}"
     pretty i StructDef { structDeclName = name, attributes = attrs } =
         indent i <> "struct " <> name <> " {\n" <> T.intercalate "\n" (map (pretty (i+1)) attrs) <> "\n" <> indent i <> "}"
+
+instance Pretty (StructField phase) where
+    pretty i Scalar { scalarName = name, scalarType = sType } = 
+        indent i <> name <> ": " <> pretty 0 sType <> ";"
+    pretty i Vector { vectorName = name, vectorType = vType } =
+        indent i <> name <> ": " <> pretty 0 vType <> ";"
+    pretty i Struct { structureName = name, structAttrs = attrs } = 
+        indent i <> "struct " <> name <> "{\n" <> T.intercalate "\n" (map (pretty (i+1)) attrs) <> "\n" <> indent i <> "}"
+        
 
 instance Pretty (Stmt phase) where
     pretty i LocalVarDecl { localName = name, localType = varType } = 

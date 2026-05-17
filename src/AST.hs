@@ -12,16 +12,19 @@ type family XSymbol phase
 type family XExpr   phase
 type family XStmt   phase 
 type family XDecl   phase
+type family XAttr   phase
 
 type instance XSymbol Parsed = ()
 type instance XExpr   Parsed = ()
 type instance XStmt   Parsed = ()
 type instance XDecl   Parsed = ()
+type instance XAttr   Parsed = Decl Parsed
 
 type instance XSymbol Resolved = ResolvedInfo
 type instance XExpr   Resolved = ()
 type instance XStmt   Resolved = ()
 type instance XDecl   Resolved = ()
+type instance XAttr   Resolved = StructField Resolved 
 
 data SymbolKind
     = LocalVar
@@ -52,7 +55,12 @@ data Decl phase
     = GlobalVarDecl   { globalName :: T.Text, globalType :: Type }
     | GlobalArrDecl   { globalArrDeclName :: T.Text, globalArrType :: Type }
     | FuncDef         { funcDeclName :: T.Text, returnType :: Type, args :: [Argument], funcBody :: [Stmt phase] }
-    | StructDef       { structDeclName :: T.Text, attributes :: [Decl phase] }
+    | StructDef       { structDeclName :: T.Text, attributes :: [XAttr phase] }
+
+data StructField phase
+    = Scalar          { scalarName :: T.Text, scalarType :: Type }
+    | Vector          { vectorName :: T.Text, vectorType :: Type }
+    | Struct          { structureName :: T.Text, structAttrs :: [StructField phase] }
 
 data Stmt phase
     = LocalVarDecl   { localName :: T.Text, localType :: Type }
