@@ -57,6 +57,15 @@ resolveStmt (LocalArrDecl name t) = do
 resolveStmt (ExprStmt expr) = do 
     newExpr <- resolveExpr expr
     return $ ExprStmt newExpr
+resolveStmt (IfStmt condition ifBlock elseBlock) = do
+    newExpr <- resolveExpr condition
+    _ <- enterScope
+    newIfBlock <- mapM resolveStmt ifBlock
+    _ <- exitScope
+    _ <- enterScope
+    newElseBlock <- mapM resolveStmt elseBlock
+    _ <- exitScope
+    return $ IfStmt newExpr newIfBlock newElseBlock
 
 
 
