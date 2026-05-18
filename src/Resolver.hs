@@ -66,9 +66,27 @@ resolveStmt (IfStmt condition ifBlock elseBlock) = do
     newElseBlock <- mapM resolveStmt elseBlock
     _ <- exitScope
     return $ IfStmt newExpr newIfBlock newElseBlock
+resolveStmt (ForStmt forInit forCond forIncr forBody) = do 
+    newForInit <- mapM resolveExpr forInit
+    newForCond <- mapM resolveExpr forCond
+    newForIncr <- mapM resolveExpr forIncr
+    _ <- enterScope
+    newForBody <- mapM resolveStmt forBody
+    _ <- exitScope
+    return $ ForStmt newForInit newForCond newForIncr newForBody
+resolveStmt (WhileStmt whileCond whileBody) = do 
+    newWhileCond <- resolveExpr whileCond
+    _ <- enterScope
+    newWhileBody <- mapM resolveStmt whileBody
+    _ <- exitScope
+    return $ WhileStmt newWhileCond newWhileBody
+resolveStmt (ReturnStmt val) = do
+    newVal <- mapM resolveExpr val
+    return $ ReturnStmt newVal
+resolveStmt BreakStmt = return BreakStmt
+resolveStmt ContinueStmt = return ContinueStmt
 
-
-
+resolveExpr :: Expr Parsed -> ResolverState (Expr Resolved)
 
 
 
