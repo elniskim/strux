@@ -87,11 +87,22 @@ resolveStmt BreakStmt = return BreakStmt
 resolveStmt ContinueStmt = return ContinueStmt
 
 resolveExpr :: Expr Parsed -> ResolverState (Expr Resolved)
-
-
-
-
-
+resolveExpr (BinaryExpr binOp leftExpr rightExpr _) = do
+    newLeft <- resolveExpr leftExpr
+    newRight <- resolveExpr rightExpr
+    return $ BinaryExpr binOp newLeft newRight ()
+resolveExpr (UnaryExpr unOp rightExpr _) = do
+    newRight <- resolveExpr rightExpr
+    return $ UnaryExpr unOp newRight ()
+resolveExpr (FunctionCall name args _) = do
+    newArgs <- mapM resolveExpr args
+    return $ name newArgs ()
+resolveExpr (ArrayIndex name idx _) = do 
+    newIdx <- resolveExpr idx 
+    return $ ArrayIndex name newIdx ()
+resolveExpr (StructDeref name field _) = return $ StructDeref name field ()
+resolveExpr (Symbol name _) = do 
+    
 
 
 freshId :: ResolverState SymbolId
