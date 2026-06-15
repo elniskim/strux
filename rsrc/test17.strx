@@ -7,7 +7,7 @@ def main() -> void {
     res = 6;
 
     if (cond) {
-        rest = 3;
+        res = 3;
     }
 
     printInt(res);

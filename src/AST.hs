@@ -110,7 +110,9 @@ data Type
     = IntType
     | FloatType
     | BoolType
+    | CharType
     | StructType T.Text
     | ArrayType Int Type
+    | FuncType Type [Type]
     | VoidType
     deriving (Show, Eq)

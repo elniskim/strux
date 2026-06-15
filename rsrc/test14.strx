@@ -1,7 +1,7 @@
 # Testing argument passing.
 
 def func(arg: int) -> void {
-    printInt(a);
+    printInt(arg);
 }
 
 def main() -> void {

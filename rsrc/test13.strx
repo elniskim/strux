@@ -1,7 +1,7 @@
 # Testing function calling.
 
 def func() -> void {
-    printString("Hello, world!");
+    printStr("Hello, world!");
 }
 
 def main() -> void {

@@ -15,27 +15,35 @@ data Resolver = Resolver {
 type ResolverState = State Resolver
 type Scope = Map.Map T.Text ResolvedInfo
 
+initScope :: Scope
+initScope = Map.fromList [("printInt", ResolvedInfo FunctionName (FuncType VoidType [IntType]) (-2)),
+                          ("printFloat", ResolvedInfo FunctionName (FuncType VoidType [FloatType]) (-3)),
+                          ("printBool", ResolvedInfo FunctionName (FuncType VoidType [BoolType]) (-4)),
+                          ("printChar", ResolvedInfo FunctionName (FuncType VoidType [CharType]) (-5)),
+                          ("printStr", ResolvedInfo FunctionName (FuncType VoidType [ArrayType 0 VoidType]) (-6))]
+
 resolveStrux :: Program Parsed -> (Program Resolved, [T.Text])
-resolveStrux program = let (a, s) = runState (resolveProgram program) (Resolver [] 0 []) in (a, errors s)
+resolveStrux program = let (a, s) = runState (resolveProgram program) (Resolver [initScope] 0 []) in (a, errors s)
 
 resolveProgram :: Program Parsed -> ResolverState (Program Resolved)
 resolveProgram program = do
-    _ <- enterScope -- will never exit this scope. this is the global scope. should always be present
+    _ <- enterScope -- will never exit this scope. this is the global scope. should always be present. underneath are builtins
     ds <- mapM resolveDecl $ declList program
     return $ Program ds
 
 resolveDecl :: Decl Parsed -> ResolverState (Decl Resolved)
 resolveDecl (GlobalVarDecl name t) = do
-    info <- insertInScope GlobalVar t name
+    _ <- insertInScope GlobalVar t name -- We don't need the information here. Storing it in the state to be retrieved for symbols when needed.
     return $ GlobalVarDecl name t
 resolveDecl (GlobalArrDecl name t) = do
-    info <- insertInScope GlobalVar t name
+    _ <- insertInScope GlobalVar t name
     return $ GlobalVarDecl name t
 resolveDecl (FuncDef name retType args body) = do
     _ <- enterScope
     mapM_ (\arg -> insertInScope LocalVar (argType arg) (argName arg)) args
     newBody <- mapM resolveStmt body
     _ <- exitScope
+    _ <- insertInScope FunctionName (FuncType retType (map argType args)) name
     return $ FuncDef name retType args newBody
 resolveDecl (StructDef name attrs) = do
     let newAttrs = map makeField attrs
@@ -52,9 +60,9 @@ resolveStmt (LocalVarDecl name t) = do
     _ <- insertInScope LocalVar t name
     return $ LocalVarDecl name t
 resolveStmt (LocalArrDecl name t) = do
-    _ <- insertInScope LocalVar t n
+    _ <- insertInScope LocalVar t name
     return $ LocalArrDecl name t
-resolveStmt (ExprStmt expr) = do 
+resolveStmt (ExprStmt expr) = do
     newExpr <- resolveExpr expr
     return $ ExprStmt newExpr
 resolveStmt (IfStmt condition ifBlock elseBlock) = do
@@ -66,7 +74,7 @@ resolveStmt (IfStmt condition ifBlock elseBlock) = do
     newElseBlock <- mapM resolveStmt elseBlock
     _ <- exitScope
     return $ IfStmt newExpr newIfBlock newElseBlock
-resolveStmt (ForStmt forInit forCond forIncr forBody) = do 
+resolveStmt (ForStmt forInit forCond forIncr forBody) = do
     newForInit <- mapM resolveExpr forInit
     newForCond <- mapM resolveExpr forCond
     newForIncr <- mapM resolveExpr forIncr
@@ -74,7 +82,7 @@ resolveStmt (ForStmt forInit forCond forIncr forBody) = do
     newForBody <- mapM resolveStmt forBody
     _ <- exitScope
     return $ ForStmt newForInit newForCond newForIncr newForBody
-resolveStmt (WhileStmt whileCond whileBody) = do 
+resolveStmt (WhileStmt whileCond whileBody) = do
     newWhileCond <- resolveExpr whileCond
     _ <- enterScope
     newWhileBody <- mapM resolveStmt whileBody
@@ -94,15 +102,28 @@ resolveExpr (BinaryExpr binOp leftExpr rightExpr _) = do
 resolveExpr (UnaryExpr unOp rightExpr _) = do
     newRight <- resolveExpr rightExpr
     return $ UnaryExpr unOp newRight ()
-resolveExpr (FunctionCall name args _) = do
-    newArgs <- mapM resolveExpr args
-    return $ name newArgs ()
-resolveExpr (ArrayIndex name idx _) = do 
-    newIdx <- resolveExpr idx 
-    return $ ArrayIndex name newIdx ()
-resolveExpr (StructDeref name field _) = return $ StructDeref name field ()
-resolveExpr (Symbol name _) = do 
-    
+resolveExpr (FunctionCall name funcArgs _) = do
+    newArgs <- mapM resolveExpr funcArgs
+    newName <- resolveExpr name
+    return $ FunctionCall newName newArgs ()
+resolveExpr (ArrayIndex name idx _) = do
+    newIdx <- resolveExpr idx
+    newName <- resolveExpr name
+    return $ ArrayIndex newName newIdx ()
+resolveExpr (StructDeref name field _) = do
+    newName <- resolveExpr name
+    return $ StructDeref newName field ()
+resolveExpr (Symbol name _) = do
+    metadata <- findInScopes name
+    return $ Symbol name metadata
+resolveExpr (IntLiteral val _) = return $ IntLiteral val ()
+resolveExpr (FloatLiteral val _) = return $ FloatLiteral val ()
+resolveExpr (BoolLiteral val _) = return $ BoolLiteral val ()
+resolveExpr (CharLiteral val _) = return $ CharLiteral val ()
+resolveExpr (StringLiteral val _) = return $ StringLiteral val ()
+resolveExpr (GroupedExpression parenExpr _) = do
+    newExpr <- resolveExpr parenExpr
+    return $ GroupedExpression newExpr ()
 
 
 freshId :: ResolverState SymbolId
@@ -113,28 +134,33 @@ freshId = do
     return newId
 
 enterScope :: ResolverState ()
-enterScope = do modify pushScope
+enterScope = modify pushScope
     where
         pushScope :: Resolver -> Resolver
         pushScope old = old { scopeStack = Map.empty : scopeStack old }
 
 exitScope :: ResolverState ()
-exitScope = do modify popScope
+exitScope = modify popScope
     where
         popScope :: Resolver -> Resolver
         popScope old = old { scopeStack = tail $ scopeStack old }
 
-findInScopes :: T.Text -> ResolverState (Maybe SymbolId)
+findInScopes :: T.Text -> ResolverState ResolvedInfo
 findInScopes name = do
     s <- get
     let scopes = scopeStack s
-    return $ searchScopes name scopes
-        where
-            searchScopes :: T.Text -> [Scope] -> Maybe SymbolId
-            searchScopes _ [] = Nothing
-            searchScopes symName (scope:rest) = case Map.lookup symName scope of
-                Just info -> Just (symId info)
-                Nothing -> searchScopes symName rest
+    case searchScopes name scopes of
+        Just symInfo -> return symInfo
+        Nothing    -> do
+            let err = "Missing declaration of " <> name <> " in dummy location."
+            modify $ \currState -> currState{ errors = err : errors currState }
+            return $ ResolvedInfo LocalVar VoidType (-1) -- Poison doesn't matter, if we have an error we're not moving on anyway. Arbitrary SymbolKind and type.
+    where
+        searchScopes :: T.Text -> [Scope] -> Maybe ResolvedInfo
+        searchScopes _ [] = Nothing
+        searchScopes symName (scope:rest) = case Map.lookup symName scope of
+            Just info -> Just info
+            Nothing -> searchScopes symName rest
 
 insertInScope :: SymbolKind -> Type -> T.Text -> ResolverState ResolvedInfo
 insertInScope kind t name = do

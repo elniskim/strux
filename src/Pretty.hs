@@ -106,6 +106,8 @@ instance Pretty Type where
     pretty _ IntType = "int"
     pretty _ FloatType = "float" 
     pretty _ BoolType = "bool"
+    pretty _ CharType = "char"
     pretty _ (StructType name) = name
     pretty _ (ArrayType extent base) = pretty 0 base <> "[" <> T.pack (show extent) <> "]"
     pretty _ VoidType = "void" 
+    pretty _ (FuncType _ _) = error "Trying to pretty print function type. Bad bad bad..."

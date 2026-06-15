@@ -53,6 +53,7 @@ matchType t = case t of
     "int"   -> IntType
     "float" -> FloatType
     "bool"  -> BoolType
+    "char"  -> CharType
     _       -> StructType t
 
 -- Factory for one token parsers.
