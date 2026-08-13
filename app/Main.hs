@@ -21,5 +21,5 @@ main = do
         Nothing   -> putStrLn "bro what"
     let maybeResolved = resolveStrux <$> parseTree
     case maybeResolved of
-        Just (_, errors) -> if null errors then TIO.putStrLn "you good" else TIO.putStrLn $ T.intercalate "\n" errors
+        Just (_, errors, _) -> if null errors then TIO.putStrLn "you good" else TIO.putStrLn $ T.intercalate "\n" errors
         Nothing       -> putStrLn "still, bro what"

@@ -6,9 +6,12 @@ import qualified Data.Map as Map
 import qualified Data.Text as T
 import AST
 
+type StructEnv = Map.Map T.Text [StructField Resolved]
+
 data Resolver = Resolver {
     scopeStack :: [Scope],
     nextId :: SymbolId,
+    structEnv :: StructEnv,
     errors :: [T.Text]
 }
 
@@ -22,8 +25,8 @@ initScope = Map.fromList [("printInt", ResolvedInfo FunctionName (FuncType VoidT
                           ("printChar", ResolvedInfo FunctionName (FuncType VoidType [CharType]) (-5)),
                           ("printStr", ResolvedInfo FunctionName (FuncType VoidType [ArrayType 0 VoidType]) (-6))]
 
-resolveStrux :: Program Parsed -> (Program Resolved, [T.Text])
-resolveStrux program = let (a, s) = runState (resolveProgram program) (Resolver [initScope] 0 []) in (a, errors s)
+resolveStrux :: Program Parsed -> (Program Resolved, [T.Text], StructEnv)
+resolveStrux program = let (a, s) = runState (resolveProgram program) (Resolver [initScope] 0 Map.empty []) in (a, errors s, structEnv s)
 
 resolveProgram :: Program Parsed -> ResolverState (Program Resolved)
 resolveProgram program = do
@@ -47,6 +50,7 @@ resolveDecl (FuncDef name retType args body) = do
     return $ FuncDef name retType args newBody
 resolveDecl (StructDef name attrs) = do
     let newAttrs = map makeField attrs
+    _ <- modify $ \currState -> currState {structEnv = Map.insert name newAttrs (structEnv currState)}
     return $ StructDef name newAttrs
     where
         makeField :: Decl Parsed -> StructField Resolved
@@ -170,7 +174,7 @@ insertInScope kind t name = do
         then do
             let err = "Double declaration of " <> name <> " in dummy location."
             let info = ResolvedInfo kind t (-1)
-            modify $ \currState -> currState { errors = err : errors currState } -- Double declaration, new insert not required for correctness assuming we stop given the error (we should).
+            modify $ \currState -> currState { errors = err : errors currState } -- Double declaration, new insert not required for correctness assuming we stop because of the error (we should).
             return info
         else do
             newid <- freshId
