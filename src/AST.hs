@@ -7,6 +7,7 @@ import qualified Data.Text as T
 -- Phase Tags
 data Parsed
 data Resolved 
+data Typechecked
 
 type family XSymbol phase
 type family XExpr   phase
@@ -25,6 +26,12 @@ type instance XExpr   Resolved = ()
 type instance XStmt   Resolved = ()
 type instance XDecl   Resolved = ()
 type instance XAttr   Resolved = StructField Resolved 
+
+type instance XSymbol Typechecked = Type
+type instance XExpr   Typechecked = Type
+type instance XStmt   Typechecked = ()
+type instance XDecl   Typechecked = ()
+type instance XAttr   Typechecked = StructField Typechecked 
 
 data SymbolKind
     = LocalVar
@@ -115,4 +122,5 @@ data Type
     | ArrayType Int Type
     | FuncType Type [Type]
     | VoidType
+    | ErrType -- Used for poison in the typechecker
     deriving (Show, Eq)

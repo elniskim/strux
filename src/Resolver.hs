@@ -7,11 +7,13 @@ import qualified Data.Text as T
 import AST
 
 type StructEnv = Map.Map T.Text [StructField Resolved]
+type FuncEnv = Map.Map T.Text (Type, [Type])
 
 data Resolver = Resolver {
     scopeStack :: [Scope],
     nextId :: SymbolId,
     structEnv :: StructEnv,
+    funcEnv :: FuncEnv,
     errors :: [T.Text]
 }
 
@@ -25,8 +27,8 @@ initScope = Map.fromList [("printInt", ResolvedInfo FunctionName (FuncType VoidT
                           ("printChar", ResolvedInfo FunctionName (FuncType VoidType [CharType]) (-5)),
                           ("printStr", ResolvedInfo FunctionName (FuncType VoidType [ArrayType 0 VoidType]) (-6))]
 
-resolveStrux :: Program Parsed -> (Program Resolved, [T.Text], StructEnv)
-resolveStrux program = let (a, s) = runState (resolveProgram program) (Resolver [initScope] 0 Map.empty []) in (a, errors s, structEnv s)
+resolveStrux :: Program Parsed -> (Program Resolved, [T.Text], StructEnv, FuncEnv)
+resolveStrux program = let (a, s) = runState (resolveProgram program) (Resolver [initScope] 0 Map.empty Map.empty []) in (a, errors s, structEnv s, funcEnv s)
 
 resolveProgram :: Program Parsed -> ResolverState (Program Resolved)
 resolveProgram program = do
@@ -47,6 +49,8 @@ resolveDecl (FuncDef name retType args body) = do
     newBody <- mapM resolveStmt body
     _ <- exitScope
     _ <- insertInScope FunctionName (FuncType retType (map argType args)) name
+    let argTypes = map argType args
+    _ <- modify $ \currState -> currState {funcEnv = Map.insert name (retType, argTypes) (funcEnv currState)}
     return $ FuncDef name retType args newBody
 resolveDecl (StructDef name attrs) = do
     let newAttrs = map makeField attrs
