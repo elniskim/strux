@@ -112,8 +112,7 @@ resolveExpr (UnaryExpr unOp rightExpr _) = do
     return $ UnaryExpr unOp newRight ()
 resolveExpr (FunctionCall name funcArgs _) = do
     newArgs <- mapM resolveExpr funcArgs
-    newName <- resolveExpr name
-    return $ FunctionCall newName newArgs ()
+    return $ FunctionCall name newArgs ()
 resolveExpr (ArrayIndex name idx _) = do
     newIdx <- resolveExpr idx
     newName <- resolveExpr name

@@ -70,7 +70,7 @@ instance Pretty (Expr phase) where
     pretty _ UnaryExpr { unaryOp = unOp, right = expr } = 
         "(" <> pretty 0 unOp <> pretty 0 expr <> ")"
     pretty _ FunctionCall { funcName = name, arguments = funcArgs } = 
-        "(" <>pretty 0 name <> "(" <> T.intercalate ", " (map (pretty 0) funcArgs) <> "))" 
+        "(" <> name <> "(" <> T.intercalate ", " (map (pretty 0) funcArgs) <> "))" 
     pretty _ ArrayIndex { arrName = name, index = expr } = 
         "(" <> pretty 0 name <> "[" <> pretty 0 expr <> "]" <> ")"
     pretty _ StructDeref { structName = sname, fieldName = fname } = 

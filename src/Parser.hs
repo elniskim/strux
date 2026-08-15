@@ -504,6 +504,10 @@ anyString = TokString ""
 anyChar :: TokenType
 anyChar = TokChar '\0'
 
+extractFunctionName :: Expr Parsed -> T.Text
+extractFunctionName (Symbol name _) = name
+extractFunctionName _ = ""
+
 mkBinaryExpr :: Op -> Expr Parsed -> Expr Parsed -> Expr Parsed
 mkBinaryExpr op l r = BinaryExpr op l r ()
 
@@ -511,7 +515,7 @@ mkUnaryExpr :: Op -> Expr Parsed -> Expr Parsed
 mkUnaryExpr op r = UnaryExpr op r ()
 
 mkFunctionCall :: Expr Parsed -> [Expr Parsed] -> Expr Parsed
-mkFunctionCall name exprs = FunctionCall name exprs ()
+mkFunctionCall expr exprs = FunctionCall (extractFunctionName expr) exprs ()
 
 mkArrayIndex :: Expr Parsed -> Expr Parsed -> Expr Parsed
 mkArrayIndex name i = ArrayIndex name i ()

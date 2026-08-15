@@ -3,9 +3,11 @@ module Typechecker where
 
 import qualified Data.Text as T
 import Data.List
+import Data.Map as Map
 import AST
 import Control.Monad.Reader
-import Control.Monad.Writer 
+import Control.Monad.Writer
+import Control.Monad ( when, unless )
 import Resolver (StructEnv, FuncEnv)
 
 type TypecheckerM = ReaderT (StructEnv, FuncEnv) (Writer [T.Text])
@@ -14,7 +16,7 @@ typecheckStrux :: Program Resolved -> StructEnv -> FuncEnv -> (Program Typecheck
 typecheckStrux program strux funx = runWriter $ runReaderT (typecheckProgram program) (strux, funx)
 
 typecheckProgram :: Program Resolved -> TypecheckerM (Program Typechecked)
-typecheckProgram program = do 
+typecheckProgram program = do
     ds <- mapM typecheckDecl $ declList program
     return $ Program ds
 
@@ -24,14 +26,14 @@ typecheckDecl (FuncDef name retType args body) = do
     return $ FuncDef name retType args newBody
 typecheckDecl (GlobalVarDecl name t) = return $ GlobalVarDecl name t
 typecheckDecl (GlobalArrDecl name t) = return $ GlobalArrDecl name t
-typecheckDecl (StructDef name attrs) = do 
+typecheckDecl (StructDef name attrs) = do
     newAttrs <- mapM typecheckAttr attrs
     return $ StructDef name newAttrs
 
 typecheckAttr :: StructField Resolved -> TypecheckerM (StructField Typechecked)
 typecheckAttr (Scalar name sVal) = return $ Scalar name sVal
 typecheckAttr (Vector name vVal) = return $ Vector name vVal
-typecheckAttr (Struct name attrs) = do 
+typecheckAttr (Struct name attrs) = do
     newAttrs <- mapM typecheckAttr attrs
     return $ Struct name newAttrs
 
@@ -39,111 +41,173 @@ typecheckStmt :: Stmt Resolved -> TypecheckerM (Stmt Typechecked)
 typecheckStmt (LocalVarDecl name varType) = return $ LocalVarDecl name varType
 typecheckStmt (LocalArrDecl name arrType) = return $ LocalArrDecl name arrType
 typecheckStmt (ExprStmt expr) = do {nExpr <- typecheckExpr expr; return $ ExprStmt nExpr}
-typecheckStmt (IfStmt expr b1 b2) = do 
+typecheckStmt (IfStmt expr b1 b2) = do
     nExpr <- typecheckExpr expr
     nb1 <- mapM typecheckStmt b1
     nb2 <- mapM typecheckStmt b2
     return $ IfStmt nExpr nb1 nb2
-typecheckStmt (ForStmt init check incr body) = do 
+typecheckStmt (ForStmt init check incr body) = do
     nInit <- mapM typecheckExpr init
     nCheck <- mapM typecheckExpr check
     nIncr <- mapM typecheckExpr incr
-    nBody <- mapM typecheckStmt body 
+    nBody <- mapM typecheckStmt body
     return $ ForStmt nInit nCheck nIncr nBody
-typecheckStmt (WhileStmt check body) = do 
+typecheckStmt (WhileStmt check body) = do
     nCheck <- typecheckExpr check
     nBody <- mapM typecheckStmt body
     return $ WhileStmt nCheck nBody
-typecheckStmt (ReturnStmt ret) = do 
+typecheckStmt (ReturnStmt ret) = do
     nRet <- mapM typecheckExpr ret
     return $ ReturnStmt nRet
 typecheckStmt BreakStmt = return BreakStmt
-typecheckStmt ContinueStmt = return ContinueStmt 
+typecheckStmt ContinueStmt = return ContinueStmt
 
 typecheckExpr :: Expr Resolved -> TypecheckerM (Expr Typechecked)
-typecheckExpr (BinaryExpr op left right _) = do 
+typecheckExpr (BinaryExpr op left right _) = do
     nLeft <- typecheckExpr left
     nRight <- typecheckExpr right
-    let exprType = binTypeRes op (eMeta nLeft) (eMeta nRight)
-    return $ BinaryExpr op left right exprType
-typecheckExpr (UnaryExpr op right _) = do 
+    let lType = eMeta nLeft
+        rType = eMeta nRight
+        exprType = binTypeRes op lType rType
+    when (exprType == ErrType) $
+        tell ["Illegal types " <> T.pack (show lType) <> " and " <> T.pack (show rType) <> "for binary operator " <> T.pack (show op) <> "."]
+    return $ BinaryExpr op nLeft nRight exprType
+typecheckExpr (UnaryExpr op right _) = do
     nRight <- typecheckExpr right
-    let exprType = unTypeRes op (eMeta nRight)
+    let rType = eMeta nRight
+        exprType = unTypeRes op rType
+    when (exprType == ErrType) $
+        tell ["Illegal type " <> T.pack (show rType) <> "for unary operator " <> T.pack (show op) <> "."]
     return $ UnaryExpr op nRight exprType
-typecheckExpr (FunctionCall name args _) = do 
+typecheckExpr (FunctionCall name args _) = do
+    -- blank string name indicates attempt to call non callable object
     (_, funx) <- ask
     nArgs <- mapM typecheckExpr args
-    case Map.lookup name funx of 
-        Just (retType, argTypes) ->
-            let usedTypes = map eMeta nArgs
-            in if usedTypes == argTypes 
-                then return $ FunctionCall name args retType
-                else do
-                    tell ["Call to" <> name <> "has mismatched types.\nExpected: " <> show argTypes <> "\nGot: " <> show $ usedTypes]
-                    return $ FunctionCall name args ErrType
-        Nothing -> do 
-            tell ["Function " <> name <> " not found. This should never happen. Oops!"]
-            return $ FunctionCall name args ErrType
-typecheckExpr (ArrayIndex arr idx _) = do 
+    case name of
+        "" -> do
+            tell ["Attempt to call non-callable object."]
+            return $ FunctionCall name nArgs ErrType
+
+        _ -> case Map.lookup name funx of
+            Just (retType, argTypes) ->
+                let usedTypes = fmap eMeta nArgs
+                in if usedTypes == argTypes
+                    then return $ FunctionCall name nArgs retType
+                    else do
+                        tell ["Call to " <> name <> " has mismatched types.\nExpected: " <> T.pack (show argTypes) <> "\nGot: " <> T.pack (show usedTypes)]
+                        return $ FunctionCall name nArgs ErrType
+            Nothing -> do
+                tell ["Function " <> name <> " not found."]
+                return $ FunctionCall name nArgs ErrType
+typecheckExpr (ArrayIndex arr idx _) = do
     nArr <- typecheckExpr arr
     nIdx <- typecheckExpr idx
-    let intPoison = eMeta nIdx == IntType
-    let arrPoison = isArrayType $ eMeta nArr
-    unless intPoison $
+    let intCheck = eMeta nIdx == IntType
+    let arrCheck = isArrayType $ eMeta nArr
+    unless intCheck $
         tell ["Array index must be integer"]
-    unless arrPoison $
+    unless arrCheck $
         tell ["Cannot index non-array type"]
-    let resultType = if intPoison || arrPoison
+    let resultType = if not intCheck || not arrCheck
         then ErrType
         else getElementType (eMeta nArr)
-    return $ ArrayIndex nArr nIdx resultType 
-typecheckExpr (StructDeref struct field _) = do 
+    return $ ArrayIndex nArr nIdx resultType
+typecheckExpr (StructDeref struct field _) = do
     (strux, _) <- ask
-    let getName = \field -> case field of
-        (Scalar name _) -> name
-        (Vector name _) -> name 
-        (Struct name _) -> name
+    let getName (Scalar name _) = name
+        getName (Vector name _) = name
+        getName (Struct name _) = name
     nStruct <- typecheckExpr struct
-    let (sType, sName) = getStructType $ eNeta nStruct
+    let (sType, sName) = getStructType $ eMeta nStruct
     case Map.lookup sName strux of
         Just fields ->
-            case find (\f -> (getName f) == field) fields of 
-                Just structField -> return $ StructDeref struct field (getFieldType structfield)
+            case find (\f -> getName f == field) fields of
+                Just structField -> return $ StructDeref nStruct field (getFieldType structField)
                 Nothing -> do
                     tell ["Struct " <> sName <> " does not have field " <> field <> "."]
-                    return $ StructDeref struct field ErrType
-        Nothing -> do 
+                    return $ StructDeref nStruct field ErrType
+        Nothing -> do
             tell ["Struct " <> sName <> " not registered."]
-            return $ StructDeref struct field ErrType
+            return $ StructDeref nStruct field ErrType
 typecheckExpr (Symbol name meta) = return $ Symbol name (symType meta)
 typecheckExpr (IntLiteral val _) = return $ IntLiteral val IntType
 typecheckExpr (FloatLiteral val _) = return $ FloatLiteral val FloatType
 typecheckExpr (BoolLiteral val _) = return $ BoolLiteral val BoolType
 typecheckExpr (CharLiteral val _) = return $ CharLiteral val CharType
 typecheckExpr (StringLiteral val _) = return $ StringLiteral val (ArrayType 0 CharType)
-typecheckExpr (GroupedExpression expr _) = do 
+typecheckExpr (GroupedExpression expr _) = do
     nExpr <- typecheckExpr expr
     return $ GroupedExpression nExpr (eMeta nExpr)
 
+binTypeRes :: Op -> Type -> Type -> Type
+binTypeRes _ ErrType _ = ErrType
+binTypeRes _ _ ErrType = ErrType
+binTypeRes op left right
+    | isArithmeticOp op = if left == right && (left == IntType || left == FloatType)
+                          then left
+                          else ErrType
+    | isCompOp op = if left == right && (left == IntType || left == FloatType)
+                    then BoolType
+                    else ErrType
+    | isBoolOp op = if left == right && left == BoolType
+                    then BoolType
+                    else ErrType
+    | otherwise = ErrType
 
+unTypeRes :: Op -> Type -> Type
+unTypeRes _ ErrType = ErrType
+unTypeRes op right
+    | op == SUB = if right == IntType || right == FloatType
+                  then right
+                  else ErrType
+    | op == UNARYNOT = if right == BoolType
+                       then BoolType
+                       else ErrType
+    | otherwise = ErrType
 
 isArrayType :: Type -> Bool
 isArrayType (ArrayType _ _) = True
 isArrayType _ = False
 
 isStructType :: Type -> Bool
-isStructType (StructType _ _) = True
+isStructType (StructType _) = True
 isStructType _ = False
 
-getFieldType :: StructField -> Type
+getFieldType :: StructField Resolved -> Type
 getFieldType (Scalar _ sType) = sType
 getFieldType (Vector _ vType) = vType
 getFieldType (Struct name _) = StructType name
 
 getStructType :: Type -> (Type, T.Text)
-isStructType (StructType name) = (StructType name, name)
-isStructType _ = (ErrType, "")
+getStructType (StructType name) = (StructType name, name)
+getStructType _ = (ErrType, "")
 
 getElementType :: Type -> Type
-getElementType (ArrayType _ elem) = elem 
+getElementType (ArrayType _ tElem) = tElem
 getElementType _ = ErrType
+
+isArithmeticOp :: Op -> Bool
+isArithmeticOp ADD = True
+isArithmeticOp SUB = True
+isArithmeticOp MULT = True
+isArithmeticOp DIV = True
+isArithmeticOp MOD = True
+isArithmeticOp BITAND = True
+isArithmeticOp BITOR = True
+isArithmeticOp _ = False
+
+isCompOp :: Op -> Bool
+isCompOp COMPGT = True
+isCompOp COMPGE = True
+isCompOp COMPLT = True
+isCompOp COMPLE = True
+isCompOp COMPEQ = True
+isCompOp COMPNEQ = True
+isCompOp _ = False
+
+-- Function only used for binary operators, so no UNARYNOT
+isBoolOp :: Op -> Bool
+isBoolOp LOGAND = True
+isBoolOp LOGOR = True
+isBoolOp _ = False
+

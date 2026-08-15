@@ -83,7 +83,7 @@ data Stmt phase
 data Expr phase
     = BinaryExpr        { binaryOp :: Op, left :: Expr phase, right :: Expr phase, eMeta :: XExpr phase }
     | UnaryExpr         { unaryOp :: Op, right :: Expr phase, eMeta :: XExpr phase }
-    | FunctionCall      { funcName :: Expr phase, arguments :: [Expr phase], eMeta :: XExpr phase }
+    | FunctionCall      { funcName :: T.Text, arguments :: [Expr phase], eMeta :: XExpr phase }
     | ArrayIndex        { arrName :: Expr phase, index :: Expr phase, eMeta :: XExpr phase }
     | StructDeref       { structName :: Expr phase, fieldName :: T.Text, eMeta :: XExpr phase }
     | Symbol            { symbolName :: T.Text, sMeta :: XSymbol phase }
@@ -112,6 +112,7 @@ data Op
     | LOGAND
     | BITAND
     | UNARYNOT
+    deriving (Show, Eq)
 
 data Type
     = IntType
