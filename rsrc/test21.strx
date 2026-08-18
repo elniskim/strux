@@ -1,7 +1,7 @@
 # Testing while loops.
 
 def main() -> void {
-    i: Int;
+    i: int;
     i = 0;
 
     while (i < 10) {

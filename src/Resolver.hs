@@ -25,10 +25,18 @@ initScope = Map.fromList [("printInt", ResolvedInfo FunctionName (FuncType VoidT
                           ("printFloat", ResolvedInfo FunctionName (FuncType VoidType [FloatType]) (-3)),
                           ("printBool", ResolvedInfo FunctionName (FuncType VoidType [BoolType]) (-4)),
                           ("printChar", ResolvedInfo FunctionName (FuncType VoidType [CharType]) (-5)),
-                          ("printStr", ResolvedInfo FunctionName (FuncType VoidType [ArrayType 0 VoidType]) (-6))]
+                          ("printStr", ResolvedInfo FunctionName (FuncType VoidType [ArrayType 0 CharType]) (-6))]
+
+initFuncEnv :: FuncEnv
+initFuncEnv = Map.fromList [("printInt", (VoidType, [IntType])),
+                          ("printFloat", (VoidType, [FloatType])),
+                          ("printBool", (VoidType, [BoolType])),
+                          ("printChar", (VoidType, [CharType])),
+                          ("printStr", (VoidType, [ArrayType 0 CharType]))]
+
 
 resolveStrux :: Program Parsed -> (Program Resolved, [T.Text], StructEnv, FuncEnv)
-resolveStrux program = let (a, s) = runState (resolveProgram program) (Resolver [initScope] 0 Map.empty Map.empty []) in (a, errors s, structEnv s, funcEnv s)
+resolveStrux program = let (a, s) = runState (resolveProgram program) (Resolver [initScope] 0 Map.empty initFuncEnv []) in (a, errors s, structEnv s, funcEnv s)
 
 resolveProgram :: Program Parsed -> ResolverState (Program Resolved)
 resolveProgram program = do

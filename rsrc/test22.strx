@@ -1,9 +1,9 @@
 # Testing defining structs.
 
 struct Test {
-    a: Int;
-    b: Bool;
-    c: Char[10];
+    a: int;
+    b: bool;
+    c: char[10];
 }
 
 def main() -> void {

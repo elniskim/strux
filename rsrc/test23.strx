@@ -1,9 +1,9 @@
 # Testing using structs.
 
 struct Test {
-    int1: Int;
-    int2: Int;
-    boolean: Bool;
+    int1: int;
+    int2: int;
+    boolean: bool;
 }
 
 def main() -> void {

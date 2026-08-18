@@ -66,15 +66,15 @@ typecheckExpr :: Expr Resolved -> TypecheckerM (Expr Typechecked)
 typecheckExpr (BinaryExpr op left right _) = do
     nLeft <- typecheckExpr left
     nRight <- typecheckExpr right
-    let lType = eMeta nLeft
-        rType = eMeta nRight
+    let lType = getExprMeta nLeft
+        rType = getExprMeta nRight
         exprType = binTypeRes op lType rType
     when (exprType == ErrType) $
-        tell ["Illegal types " <> T.pack (show lType) <> " and " <> T.pack (show rType) <> "for binary operator " <> T.pack (show op) <> "."]
+        tell ["Illegal types " <> T.pack (show lType) <> " and " <> T.pack (show rType) <> " for binary operator " <> T.pack (show op) <> "."]
     return $ BinaryExpr op nLeft nRight exprType
 typecheckExpr (UnaryExpr op right _) = do
     nRight <- typecheckExpr right
-    let rType = eMeta nRight
+    let rType = getExprMeta nRight
         exprType = unTypeRes op rType
     when (exprType == ErrType) $
         tell ["Illegal type " <> T.pack (show rType) <> "for unary operator " <> T.pack (show op) <> "."]
@@ -90,7 +90,7 @@ typecheckExpr (FunctionCall name args _) = do
 
         _ -> case Map.lookup name funx of
             Just (retType, argTypes) ->
-                let usedTypes = fmap eMeta nArgs
+                let usedTypes = fmap getExprMeta nArgs
                 in if usedTypes == argTypes
                     then return $ FunctionCall name nArgs retType
                     else do
@@ -102,15 +102,15 @@ typecheckExpr (FunctionCall name args _) = do
 typecheckExpr (ArrayIndex arr idx _) = do
     nArr <- typecheckExpr arr
     nIdx <- typecheckExpr idx
-    let intCheck = eMeta nIdx == IntType
-    let arrCheck = isArrayType $ eMeta nArr
+    let intCheck = getExprMeta nIdx == IntType
+    let arrCheck = isArrayType $ getExprMeta nArr
     unless intCheck $
         tell ["Array index must be integer"]
     unless arrCheck $
         tell ["Cannot index non-array type"]
     let resultType = if not intCheck || not arrCheck
         then ErrType
-        else getElementType (eMeta nArr)
+        else getElementType (getExprMeta nArr)
     return $ ArrayIndex nArr nIdx resultType
 typecheckExpr (StructDeref struct field _) = do
     (strux, _) <- ask
@@ -118,7 +118,7 @@ typecheckExpr (StructDeref struct field _) = do
         getName (Vector name _) = name
         getName (Struct name _) = name
     nStruct <- typecheckExpr struct
-    let (sType, sName) = getStructType $ eMeta nStruct
+    let (sType, sName) = getStructType $ getExprMeta nStruct
     case Map.lookup sName strux of
         Just fields ->
             case find (\f -> getName f == field) fields of
@@ -137,7 +137,7 @@ typecheckExpr (CharLiteral val _) = return $ CharLiteral val CharType
 typecheckExpr (StringLiteral val _) = return $ StringLiteral val (ArrayType 0 CharType)
 typecheckExpr (GroupedExpression expr _) = do
     nExpr <- typecheckExpr expr
-    return $ GroupedExpression nExpr (eMeta nExpr)
+    return $ GroupedExpression nExpr (getExprMeta nExpr)
 
 binTypeRes :: Op -> Type -> Type -> Type
 binTypeRes _ ErrType _ = ErrType
@@ -152,6 +152,9 @@ binTypeRes op left right
     | isBoolOp op = if left == right && left == BoolType
                     then BoolType
                     else ErrType
+    | op == ASSIGN = if left == right
+                     then left 
+                     else ErrType
     | otherwise = ErrType
 
 unTypeRes :: Op -> Type -> Type
@@ -211,3 +214,6 @@ isBoolOp LOGAND = True
 isBoolOp LOGOR = True
 isBoolOp _ = False
 
+getExprMeta :: Expr Typechecked -> Type
+getExprMeta (Symbol _ exprType) = exprType
+getExprMeta expr = eMeta expr

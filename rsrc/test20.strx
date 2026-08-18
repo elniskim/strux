@@ -1,7 +1,7 @@
 # Testing for loops without statements;
 
 def main() -> void {
-    i: Int;
+    i: int;
     i = 0;
 
     for (;;) {

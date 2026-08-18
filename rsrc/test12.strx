@@ -1,8 +1,8 @@
 # Testing boolean operators.
 
 def main() -> void {
-    a: Bool;
-    b: Bool;
+    a: bool;
+    b: bool;
     a = True;
     b = False;
 

@@ -1,13 +1,13 @@
 # Testing structs inside structs.
 
 struct Bird {
-    beak: Int;
-    wing: Int;
+    beak: int;
+    wing: int;
 }
 
 struct Nest {
     bird: Bird;
-    twig: Float;
+    twig: float;
 }
 
 def main() -> void {

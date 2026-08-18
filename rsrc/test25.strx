@@ -1,10 +1,10 @@
 # Testing companion structs.
 
 struct Vault {
-    code: Char[4];
+    code: char[4];
     struct money {
-        numBills: Int;
-        totalValue: Float;
+        numBills: int;
+        totalValue: float;
     }
 }
 

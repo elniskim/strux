@@ -1,7 +1,7 @@
 # Testing arrays.
 
 def main() -> void {
-    arr: Int[5];
+    arr: int[5];
     arr[0] = 0;
     arr[1] = 1;
     arr[2] = 2;
