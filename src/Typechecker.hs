@@ -22,7 +22,7 @@ typecheckProgram program = do
 
 typecheckDecl :: Decl Resolved -> TypecheckerM (Decl Typechecked)
 typecheckDecl (FuncDef name retType args body) = do
-    newBody <- mapM typecheckStmt body
+    newBody <- mapM (typecheckStmt retType) body
     return $ FuncDef name retType args newBody
 typecheckDecl (GlobalVarDecl name t) = return $ GlobalVarDecl name t
 typecheckDecl (GlobalArrDecl name t) = return $ GlobalArrDecl name t
@@ -37,30 +37,33 @@ typecheckAttr (Struct name attrs) = do
     newAttrs <- mapM typecheckAttr attrs
     return $ Struct name newAttrs
 
-typecheckStmt :: Stmt Resolved -> TypecheckerM (Stmt Typechecked)
-typecheckStmt (LocalVarDecl name varType) = return $ LocalVarDecl name varType
-typecheckStmt (LocalArrDecl name arrType) = return $ LocalArrDecl name arrType
-typecheckStmt (ExprStmt expr) = do {nExpr <- typecheckExpr expr; return $ ExprStmt nExpr}
-typecheckStmt (IfStmt expr b1 b2) = do
+typecheckStmt :: Type -> Stmt Resolved -> TypecheckerM (Stmt Typechecked)
+typecheckStmt _ (LocalVarDecl name varType) = return $ LocalVarDecl name varType
+typecheckStmt _ (LocalArrDecl name arrType) = return $ LocalArrDecl name arrType
+typecheckStmt _ (ExprStmt expr) = do {nExpr <- typecheckExpr expr; return $ ExprStmt nExpr}
+typecheckStmt expectedType (IfStmt expr b1 b2) = do
     nExpr <- typecheckExpr expr
-    nb1 <- mapM typecheckStmt b1
-    nb2 <- mapM typecheckStmt b2
+    nb1 <- mapM (typecheckStmt expectedType) b1
+    nb2 <- mapM (typecheckStmt expectedType) b2
     return $ IfStmt nExpr nb1 nb2
-typecheckStmt (ForStmt init check incr body) = do
+typecheckStmt expectedType (ForStmt init check incr body) = do
     nInit <- mapM typecheckExpr init
     nCheck <- mapM typecheckExpr check
     nIncr <- mapM typecheckExpr incr
-    nBody <- mapM typecheckStmt body
+    nBody <- mapM (typecheckStmt expectedType) body
     return $ ForStmt nInit nCheck nIncr nBody
-typecheckStmt (WhileStmt check body) = do
+typecheckStmt expectedType (WhileStmt check body) = do
     nCheck <- typecheckExpr check
-    nBody <- mapM typecheckStmt body
+    nBody <- mapM (typecheckStmt expectedType) body
     return $ WhileStmt nCheck nBody
-typecheckStmt (ReturnStmt ret) = do
+typecheckStmt expectedType (ReturnStmt ret) = do
     nRet <- mapM typecheckExpr ret
+    let actualType = maybe VoidType getExprMeta nRet
+    when (actualType /= expectedType && actualType /= ErrType) $
+        tell ["Return type mismatch between expected " <> T.pack (show expectedType) <> " and actual " <> T.pack (show actualType) <> "."]
     return $ ReturnStmt nRet
-typecheckStmt BreakStmt = return BreakStmt
-typecheckStmt ContinueStmt = return ContinueStmt
+typecheckStmt _ BreakStmt = return BreakStmt
+typecheckStmt _ ContinueStmt = return ContinueStmt
 
 typecheckExpr :: Expr Resolved -> TypecheckerM (Expr Typechecked)
 typecheckExpr (BinaryExpr op left right _) = do
@@ -118,7 +121,7 @@ typecheckExpr (StructDeref struct field _) = do
         getName (Vector name _) = name
         getName (Struct name _) = name
     nStruct <- typecheckExpr struct
-    let (sType, sName) = getStructType $ getExprMeta nStruct
+    let (_, sName) = getStructType $ getExprMeta nStruct
     case Map.lookup sName strux of
         Just fields ->
             case find (\f -> getName f == field) fields of
