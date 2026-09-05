@@ -4,7 +4,7 @@
 {- HLINT ignore "Eta reduce" -}
 {- HLINT ignore "Redundant where" -}
 module BeNice where
-
+-- Check that all global constants can be defined at compile time? Move to a new structure. New layer of the AST.
 import qualified Data.Text as T
 import qualified Data.Set as S
 import qualified Data.Map as Map
@@ -12,20 +12,18 @@ import Control.Monad.Writer
 import Control.Monad.Reader
 import Control.Monad.State
 import AST
-import Control.Monad (when)
--- Check that functions return the proper type? Or do that in the typechecker... unsure.
 
 pgrmChecks :: [Check (Program Typechecked)]
 pgrmChecks = [recursiveStructCheck, mainExistsCheck]
 
 declChecks :: [Check (Decl Typechecked)]
-declChecks = [globalArrSizeCheck, allPathsReturnCheck, duplicateFieldCheck]
+declChecks = [globalArrSizeCheck, allPathsReturnCheck, duplicateFieldCheck, globalDeclResolutionCheck]
 
 stmtChecks :: [Check (Stmt Typechecked)]
 stmtChecks = [localArrSizeCheck, nakedJumpCheck, loneSymbolCheck]
 
 exprChecks :: [Check (Expr Typechecked)]
-exprChecks = [divisionByZeroCheck]
+exprChecks = [divisionByZeroCheck, lValCheck]
 
 recursiveStructCheck :: Check (Program Typechecked)
 recursiveStructCheck (Program decls) = do

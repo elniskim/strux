@@ -109,7 +109,10 @@ parseFuncDef = do
     _ <- parseArrow
     t <- parseType
     ss <- parseStmtBlock
-    pure (FuncDef n t ps ss)
+    let body = case t of
+                VoidType -> ss ++ [ReturnStmt Nothing]
+                _        -> ss
+    pure (FuncDef n t ps body)
 
 parseParamList :: Parser [Argument]
 parseParamList = parseParams <|> pure []
