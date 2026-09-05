@@ -30,7 +30,7 @@ emitProgram :: Program Typechecked -> Codegen ()
 emitProgram pgrm = mapM_ emitDecl (declList pgrm)
 
 emitDecl :: Decl Typechecked -> Codegen ()
-emitDecl (GLobalVarDecl vName vType) = do
+emitDecl (GlobalVarDecl vName vType) = do
 
 
 

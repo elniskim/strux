@@ -12,6 +12,7 @@ import Control.Monad.Writer
 import Control.Monad.Reader
 import Control.Monad.State
 import AST
+import Pretty
 
 pgrmChecks :: [Check (Program Typechecked)]
 pgrmChecks = [recursiveStructCheck, mainExistsCheck]
@@ -32,7 +33,7 @@ recursiveStructCheck (Program decls) = do
         Just names -> tell ["Struct recursion along contain stack " <> T.pack (show names) <> "."]
 
 mainExistsCheck :: Check (Program Typechecked)
-mainExistsCheck (Program decls) = do 
+mainExistsCheck (Program decls) = do
     let check = any isMain decls
     if check then return () else tell ["No function named \"main\" in program."]
         where
@@ -90,8 +91,18 @@ loneSymbolCheck _ = return ()
 
 divisionByZeroCheck :: Check (Expr Typechecked)
 divisionByZeroCheck (BinaryExpr DIV _ (IntLiteral 0 _) _) = tell ["Literal division by zero."]
-divisionByZeroCheck (BinaryExpr DIV _ (FloatLiteral 0.0 _) _) = tell ["Literal Division by zero."]
+divisionByZeroCheck (BinaryExpr DIV _ (FloatLiteral 0.0 _) _) = tell ["Literal division by zero."]
 divisionByZeroCheck _ = return ()
+
+lValCheck :: Check(Expr Typechecked)
+lValCheck asgn@(BinaryExpr ASSIGN leftExpr _ _) = if isLVal leftExpr then return () else tell ["Invalid l-value in assignment " <> pretty 0 asgn]
+    where
+        isLVal :: Expr Typechecked -> Bool
+        isLVal (Symbol {}) = True
+        isLVal (ArrayIndex {}) = True -- Typechecker guarantees that the array index and the struct deref are valid. All that matters is that there can be a properly resolved location that it refers to.
+        isLVal (StructDeref {}) = True
+        isLVal _ = False
+lValCheck _ = return ()
 
 
 
