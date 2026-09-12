@@ -132,7 +132,7 @@ typecheckExpr (StructDeref struct field _) = do
         Nothing -> do
             tell ["Struct " <> sName <> " not registered."]
             return $ StructDeref nStruct field ErrType
-typecheckExpr (Symbol name meta) = return $ Symbol name (symType meta)
+typecheckExpr (Symbol name meta) = return $ Symbol name meta
 typecheckExpr (IntLiteral val _) = return $ IntLiteral val IntType
 typecheckExpr (FloatLiteral val _) = return $ FloatLiteral val FloatType
 typecheckExpr (BoolLiteral val _) = return $ BoolLiteral val BoolType
@@ -218,5 +218,5 @@ isBoolOp LOGOR = True
 isBoolOp _ = False
 
 getExprMeta :: Expr Typechecked -> Type
-getExprMeta (Symbol _ exprType) = exprType
+getExprMeta (Symbol _ exprType) = symType exprType
 getExprMeta expr = eMeta expr

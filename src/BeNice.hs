@@ -18,7 +18,7 @@ pgrmChecks :: [Check (Program Typechecked)]
 pgrmChecks = [recursiveStructCheck, mainExistsCheck]
 
 declChecks :: [Check (Decl Typechecked)]
-declChecks = [globalArrSizeCheck, allPathsReturnCheck, duplicateFieldCheck, globalDeclResolutionCheck]
+declChecks = [globalArrSizeCheck, allPathsReturnCheck, duplicateFieldCheck]
 
 stmtChecks :: [Check (Stmt Typechecked)]
 stmtChecks = [localArrSizeCheck, nakedJumpCheck, loneSymbolCheck]

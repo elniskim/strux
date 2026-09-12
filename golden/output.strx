@@ -1,9 +1,42 @@
-# Testing comments and non-returning void functions!
+# Testing structs inside structs.
+
+struct Bird {
+    beak: int;
+    wing: int;
+}
+
+struct Nest {
+    bird: Bird;
+    twig: float;
+}
 
 def main() -> void {
-    
+    nest: Nest;
+
+    nest->twig = 7.884;
+    nest->bird->beak = 5;
+    nest->bird->wing = 10;
+
+    printInt(nest->bird->beak);
+    printInt(nest->bird->wing);
 }
 -----
+struct Bird {
+	beak: int;
+	wing: int;
+}
+
+struct Nest {
+	bird: Bird;
+	twig: float;
+}
+
 def main() -> void {
+	nest: Nest;
+	((nest->twig) = 7.884);
+	(((nest->bird)->beak) = 5);
+	(((nest->bird)->wing) = 10);
+	(printInt(((nest->bird)->beak)));
+	(printInt(((nest->bird)->wing)));
 	return;
 }

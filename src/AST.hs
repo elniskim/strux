@@ -27,7 +27,7 @@ type instance XStmt   Resolved = ()
 type instance XDecl   Resolved = ()
 type instance XAttr   Resolved = StructField Resolved 
 
-type instance XSymbol Typechecked = Type
+type instance XSymbol Typechecked = ResolvedInfo
 type instance XExpr   Typechecked = Type
 type instance XStmt   Typechecked = ()
 type instance XDecl   Typechecked = ()
