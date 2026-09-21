@@ -23,7 +23,8 @@ typecheckProgram program = do
 typecheckDecl :: Decl Resolved -> TypecheckerM (Decl Typechecked)
 typecheckDecl (FuncDef name retType args body) = do
     newBody <- mapM (typecheckStmt retType) body
-    return $ FuncDef name retType args newBody
+    let newArgs = fmap rebuildArg args
+    return $ FuncDef name retType newArgs newBody
 typecheckDecl (GlobalVarDecl name t) = return $ GlobalVarDecl name t
 typecheckDecl (GlobalArrDecl name t) = return $ GlobalArrDecl name t
 typecheckDecl (StructDef name attrs) = do
@@ -38,8 +39,8 @@ typecheckAttr (Struct name attrs) = do
     return $ Struct name newAttrs
 
 typecheckStmt :: Type -> Stmt Resolved -> TypecheckerM (Stmt Typechecked)
-typecheckStmt _ (LocalVarDecl name varType) = return $ LocalVarDecl name varType
-typecheckStmt _ (LocalArrDecl name arrType) = return $ LocalArrDecl name arrType
+typecheckStmt _ (LocalVarDecl name varType sId) = return $ LocalVarDecl name varType sId
+typecheckStmt _ (LocalArrDecl name arrType sId) = return $ LocalArrDecl name arrType sId
 typecheckStmt _ (ExprStmt expr) = do {nExpr <- typecheckExpr expr; return $ ExprStmt nExpr}
 typecheckStmt expectedType (IfStmt expr b1 b2) = do
     nExpr <- typecheckExpr expr
@@ -220,3 +221,7 @@ isBoolOp _ = False
 getExprMeta :: Expr Typechecked -> Type
 getExprMeta (Symbol _ exprType) = symType exprType
 getExprMeta expr = eMeta expr
+
+-- Annoying stupid fucking language.
+rebuildArg :: Argument Resolved -> Argument Typechecked
+rebuildArg (Argument aName aType aId) = Argument aName aType aId

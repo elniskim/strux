@@ -2,6 +2,7 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE InstanceSigs #-}
 module Pretty where
 
 import AST
@@ -19,7 +20,7 @@ class Pretty a where
 instance Pretty (XAttr phase) => Pretty (Program phase) where
     pretty _ Program { declList = decls } = T.intercalate "\n\n" (map (pretty 0) decls)
 
-instance Pretty Argument where
+instance Pretty (Argument phase) where
     pretty _ Argument { argName = name, argType = paramType } = name <> ": " <> pretty 0 paramType
 
 instance Pretty (XAttr phase) => Pretty (Decl phase) where
@@ -34,6 +35,7 @@ instance Pretty (XAttr phase) => Pretty (Decl phase) where
         indent i <> "struct " <> name <> " {\n" <> T.intercalate "\n" (map (pretty (i+1)) attrs) <> "\n" <> indent i <> "}"
 
 instance Pretty (StructField phase) where
+    pretty :: Int -> StructField phase -> T.Text
     pretty i Scalar { scalarName = name, scalarType = sType } = 
         indent i <> name <> ": " <> pretty 0 sType <> ";"
     pretty i Vector { vectorName = name, vectorType = vType } =
@@ -111,3 +113,4 @@ instance Pretty Type where
     pretty _ (ArrayType extent base) = pretty 0 base <> "[" <> T.pack (show extent) <> "]"
     pretty _ VoidType = "void" 
     pretty _ (FuncType _ _) = error "Trying to pretty print function type. Bad bad bad..."
+    pretty _ ErrType = error "Trying to pretty print ErrType. Bad bad bad..."

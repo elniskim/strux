@@ -14,12 +14,11 @@ type instance NextTerminator Linear = Void
 
 
 
-data QBEType = Word | Long | Single | Double deriving (Show, Eq)
+data QBEType = Word | Long | Single | Double | Aggregate T.Text deriving (Show, Eq)
 
 data QBEOp 
     = SGT | GT | SGE | GE | SLT | LT | SLE | LE | EQ | 
-    NE | ADD | SUB | MUL | DIV | NEG | OR | AND | REM |
-    ALLOC
+    NE | ADD | SUB | MUL | DIV | NEG | OR | AND | REM
     deriving (Show, Eq)
 
 type Label = T.Text
@@ -28,6 +27,7 @@ type Ident = T.Text
 data Operand
   = Reg Ident
   | LitInt Integer
+  | LitFloat Float
   | Global Ident
   deriving (Show, Eq)
 
@@ -44,45 +44,40 @@ data Instruction
 data Terminator phase
     = Jump Label
     | JumpNZ Operand Label Label -- First is the value to check, then the true block, then the false block 
-    | Return Operand
+    | Return (Maybe Operand)
     | Next (NextTerminator phase) -- Dummy jump forward to the next block, made into a real jump during linearization.
-
-data Phi = Phi Ident QBEType [(Label, Ident)]
 
 data BasicBlock phase = BasicBlock {
     blockLabel :: Label,
-    blockPhis :: [Phi],
     blockInsts :: [Instruction],
     terminator :: Terminator phase
 }
 
-data Block phase
+data Block
     = SimpleBlock (BasicBlock Tree)
     | IfElseBlock {
         condLabel :: Label,
         condInsts :: [Instruction],
         condResult :: Operand,
         thenLabel :: Label,
-        thenBody :: [Block Tree],
+        thenBody :: [Block],
         elseLabel :: Label,
-        elseBody :: [Block Tree],
-        mergeLabel :: Label,
-        mergePhis :: [Phi] -- Will result in a final block composed of mostly phis.
+        elseBody :: [Block],
+        mergeLabel :: Label
     }
     | LoopBlock {
         initLabel :: Label,
         initInsts :: [Instruction],
-        headerLabel :: Label,
         condInsts :: [Instruction],
         condResult :: Operand,
-        headerPhis :: [Phi],
-        bodyLabel :: Label,
-        loopBody :: [Block Tree],
-        exitLabel :: Label,
-        exitPhis :: [Phi] 
+        headerLabel :: Label,
+        loopBody :: [Block], -- No explicit body label. If empty body, body label is latch. If there is a body, pop head and retrieve first label.
+        latchLabel :: Label,
+        incrInsts :: [Instruction],
+        exitLabel :: Label
     }
 
-data QBEFunc = QBEFunc T.Text [(Ident, QBEType)] [Block Linear]
+data QBEFunc = QBEFunc T.Text QBEType [(Ident, QBEType)] [BasicBlock Linear]
 data QBEStruct = QBEStruct T.Text [(QBEType, Int)]
 data QBEDecl = QBEVarDecl T.Text QBEType | QBEArrDecl T.Text QBEType Int
 

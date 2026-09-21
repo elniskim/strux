@@ -53,13 +53,13 @@ resolveDecl (GlobalArrDecl name t) = do
     return $ GlobalVarDecl name t
 resolveDecl (FuncDef name retType args body) = do
     _ <- enterScope
-    mapM_ (\arg -> insertInScope LocalVar (argType arg) (argName arg)) args
+    newArgs <- mapM (\arg@(Argument aName aType _) -> do {info <- insertInScope LocalVar (argType arg) (argName arg); return $ Argument aName aType (symId info)}) args
     newBody <- mapM resolveStmt body
     _ <- exitScope
     _ <- insertInScope FunctionName (FuncType retType (map argType args)) name
     let argTypes = map argType args
     _ <- modify $ \currState -> currState {funcEnv = Map.insert name (retType, argTypes) (funcEnv currState)}
-    return $ FuncDef name retType args newBody
+    return $ FuncDef name retType newArgs newBody
 resolveDecl (StructDef name attrs) = do
     let newAttrs = map makeField attrs
     _ <- modify $ \currState -> currState {structEnv = Map.insert name newAttrs (structEnv currState)}
@@ -72,12 +72,12 @@ resolveDecl (StructDef name attrs) = do
         makeField _ = error "Unhandled declaration type in makeField."
 
 resolveStmt :: Stmt Parsed -> ResolverState(Stmt Resolved)
-resolveStmt (LocalVarDecl name t) = do
-    _ <- insertInScope LocalVar t name
-    return $ LocalVarDecl name t
-resolveStmt (LocalArrDecl name t) = do
-    _ <- insertInScope LocalVar t name
-    return $ LocalArrDecl name t
+resolveStmt (LocalVarDecl name t _) = do
+    info <- insertInScope LocalVar t name
+    return $ LocalVarDecl name t (symId info)
+resolveStmt (LocalArrDecl name t _) = do
+    info <- insertInScope LocalVar t name
+    return $ LocalArrDecl name t (symId info)
 resolveStmt (ExprStmt expr) = do
     newExpr <- resolveExpr expr
     return $ ExprStmt newExpr

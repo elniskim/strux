@@ -114,21 +114,21 @@ parseFuncDef = do
                 _        -> ss
     pure (FuncDef n t ps body)
 
-parseParamList :: Parser [Argument]
+parseParamList :: Parser [Argument Parsed]
 parseParamList = parseParams <|> pure []
     where
-        parseParams :: Parser [Argument]
+        parseParams :: Parser [Argument Parsed]
         parseParams = do
             first <- parseParam
             rest <- parseRest
             pure (first : rest)
-        parseParam :: Parser Argument
+        parseParam :: Parser (Argument Parsed)
         parseParam = do
             n <- parseIdent
             _ <- parseColon
             t <- parseType
-            pure (Argument n t)
-        parseRest :: Parser [Argument]
+            pure (Argument n t ())
+        parseRest :: Parser [Argument Parsed]
         parseRest = many (parseComma *> parseParam)
 
 parseStructDef :: Parser (Decl Parsed)
@@ -160,7 +160,7 @@ parseLocalVarDecl = do
     _ <- parseColon
     t <- parseType
     _ <- parseSemi
-    pure (LocalVarDecl n t)
+    pure (LocalVarDecl n t ())
 
 parseLocalArrDecl :: Parser (Stmt Parsed)
 parseLocalArrDecl = do
@@ -171,7 +171,7 @@ parseLocalArrDecl = do
     e <- parseInt
     _ <- parseSqKet
     _ <- parseSemi
-    pure (LocalArrDecl n (ArrayType e t))
+    pure (LocalArrDecl n (ArrayType e t) ())
 
 parseExprStmt :: Parser (Stmt Parsed)
 parseExprStmt = ExprStmt <$> (parseExpr0 <* parseSemi)

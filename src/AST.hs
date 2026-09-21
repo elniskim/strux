@@ -14,24 +14,32 @@ type family XExpr   phase
 type family XStmt   phase 
 type family XDecl   phase
 type family XAttr   phase
+type family XArg    phase
+type family XLocal  phase
 
 type instance XSymbol Parsed = ()
 type instance XExpr   Parsed = ()
 type instance XStmt   Parsed = ()
 type instance XDecl   Parsed = ()
 type instance XAttr   Parsed = Decl Parsed
+type instance XArg    Parsed = ()
+type instance XLocal  Parsed = ()
 
 type instance XSymbol Resolved = ResolvedInfo
 type instance XExpr   Resolved = ()
 type instance XStmt   Resolved = ()
 type instance XDecl   Resolved = ()
 type instance XAttr   Resolved = StructField Resolved 
+type instance XArg    Resolved = SymbolId
+type instance XLocal  Resolved = SymbolId
 
 type instance XSymbol Typechecked = ResolvedInfo
 type instance XExpr   Typechecked = Type
 type instance XStmt   Typechecked = ()
 type instance XDecl   Typechecked = ()
 type instance XAttr   Typechecked = StructField Typechecked 
+type instance XArg    Typechecked = SymbolId
+type instance XLocal  Typechecked = SymbolId
 
 data SymbolKind
     = LocalVar
@@ -53,15 +61,16 @@ data Program phase = Program {
     declList :: [Decl phase]
 }
 
-data Argument = Argument {
+data Argument phase = Argument {
     argName :: T.Text,
-    argType :: Type
+    argType :: Type,
+    argId :: XArg phase
 }
 
 data Decl phase
     = GlobalVarDecl   { globalName :: T.Text, globalType :: Type }
     | GlobalArrDecl   { globalArrDeclName :: T.Text, globalArrType :: Type }
-    | FuncDef         { funcDeclName :: T.Text, returnType :: Type, args :: [Argument], funcBody :: [Stmt phase] }
+    | FuncDef         { funcDeclName :: T.Text, returnType :: Type, args :: [Argument phase], funcBody :: [Stmt phase] }
     | StructDef       { structDeclName :: T.Text, attributes :: [XAttr phase] }
 
 data StructField phase
@@ -70,8 +79,8 @@ data StructField phase
     | Struct          { structureName :: T.Text, structAttrs :: [StructField phase] }
 
 data Stmt phase
-    = LocalVarDecl   { localName :: T.Text, localType :: Type }
-    | LocalArrDecl   { localArrDeclName :: T.Text, localArrType :: Type }
+    = LocalVarDecl   { localName :: T.Text, localType :: Type, varId :: XLocal phase }
+    | LocalArrDecl   { localArrDeclName :: T.Text, localArrType :: Type, arrId :: XLocal phase }
     | ExprStmt       { expression :: Expr phase }
     | IfStmt         { cond :: Expr phase, ifBlock :: [Stmt phase], elseBlock :: [Stmt phase] }
     | ForStmt        { initial :: Maybe (Expr phase), forCondition :: Maybe (Expr phase), increment :: Maybe (Expr phase), forBody :: [Stmt phase] }

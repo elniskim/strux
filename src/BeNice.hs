@@ -18,10 +18,10 @@ pgrmChecks :: [Check (Program Typechecked)]
 pgrmChecks = [recursiveStructCheck, mainExistsCheck]
 
 declChecks :: [Check (Decl Typechecked)]
-declChecks = [globalArrSizeCheck, allPathsReturnCheck, duplicateFieldCheck]
+declChecks = [globalArrSizeCheck, allPathsReturnCheck, duplicateFieldCheck, noVoidGlobalsCheck]
 
 stmtChecks :: [Check (Stmt Typechecked)]
-stmtChecks = [localArrSizeCheck, nakedJumpCheck, loneSymbolCheck]
+stmtChecks = [localArrSizeCheck, nakedJumpCheck, loneSymbolCheck, noVoidLocalsCheck]
 
 exprChecks :: [Check (Expr Typechecked)]
 exprChecks = [divisionByZeroCheck, lValCheck]
@@ -66,8 +66,15 @@ globalArrSizeCheck (GlobalArrDecl name (ArrayType size _))
     | otherwise = tell ["Global array " <> name <> " is defined with size less than/equal to zero."]
 globalArrSizeCheck _ = return ()
 
+noVoidGlobalsCheck :: Check (Decl Typechecked)
+noVoidGlobalsCheck (GlobalVarDecl vName VoidType) = tell ["Global variable " <> vName <> " has illegal type void."]
+noVoidGlobalsCheck (GlobalArrDecl aName aType)
+    | exposeArrType aType == VoidType = tell ["Global array " <> aName <> " has illegal type void."]
+    | otherwise = return ()
+noVoidGlobalsCheck _ = return ()
+
 localArrSizeCheck :: Check (Stmt Typechecked)
-localArrSizeCheck (LocalArrDecl name (ArrayType size _))
+localArrSizeCheck (LocalArrDecl name (ArrayType size _) _)
     | size > 0 = pure ()
     | otherwise = tell ["Local array " <> name <> " is defined with size less than/equal to zero."]
 localArrSizeCheck _ = return ()
@@ -76,18 +83,25 @@ nakedJumpCheck :: Check (Stmt Typechecked)
 nakedJumpCheck BreakStmt = do
     val <- asks inLoop
     if val
-        then pure ()
+        then return ()
         else tell ["Naked break statement."]
 nakedJumpCheck ContinueStmt = do
     val <- asks inLoop
     if val
-        then pure ()
+        then return ()
         else tell ["Naked break statement."]
 nakedJumpCheck _ = return ()
 
 loneSymbolCheck :: Check (Stmt Typechecked)
 loneSymbolCheck (ExprStmt (Symbol name _)) = tell ["Lone symbol " <> name <> " has value discarded."]
 loneSymbolCheck _ = return ()
+
+noVoidLocalsCheck :: Check (Stmt Typechecked)
+noVoidLocalsCheck (LocalVarDecl vName VoidType _) = tell ["Local variable " <> vName <> " has illegal type void."]
+noVoidLocalsCheck (LocalArrDecl aName aType _)
+    | exposeArrType aType == VoidType = tell ["Local variable " <> aName <> " has illegal type void."]
+    | otherwise = return ()
+noVoidLocalsCheck _ = return ()
 
 divisionByZeroCheck :: Check (Expr Typechecked)
 divisionByZeroCheck (BinaryExpr DIV _ (IntLiteral 0 _) _) = tell ["Literal division by zero."]
@@ -244,3 +258,7 @@ findM action (x:xs) = do
     case result of
         Nothing -> findM action xs
         Just val -> return $ Just val
+
+exposeArrType :: Type -> Type
+exposeArrType (ArrayType _ aType) = exposeArrType aType
+exposeArrType struxType = struxType
