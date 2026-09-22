@@ -26,7 +26,7 @@ type Ident = T.Text
 
 data Operand
   = Reg Ident
-  | LitInt Integer
+  | LitInt Int
   | LitFloat Float
   | Global Ident
   deriving (Show, Eq)
@@ -39,6 +39,7 @@ data Instruction
   | Load QBEType Ident Operand     -- destination reg, address operand
   | Alloc Ident Int                -- %dest =l alloc8 size
   | Copy Ident QBEType Operand     -- %dest =ty copy %src
+  | Blit Operand Operand Int       
   deriving (Show, Eq)
 
 data Terminator phase
@@ -77,9 +78,9 @@ data Block
         exitLabel :: Label
     }
 
-data QBEFunc = QBEFunc T.Text QBEType [(Ident, QBEType)] [BasicBlock Linear]
+data QBEFunc = QBEFunc T.Text (Maybe QBEType) [(Ident, QBEType)] [BasicBlock Linear]
 data QBEStruct = QBEStruct T.Text [(QBEType, Int)]
-data QBEDecl = QBEVarDecl T.Text QBEType | QBEArrDecl T.Text QBEType Int
+data QBEDecl = QBEVarDecl T.Text QBEType | QBEArrDecl T.Text QBEType Int | QBEStrDecl T.Text Ident
 
 data QBEIR = QBEIR {
     funcIRs :: [QBEFunc],

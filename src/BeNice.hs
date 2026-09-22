@@ -24,7 +24,7 @@ stmtChecks :: [Check (Stmt Typechecked)]
 stmtChecks = [localArrSizeCheck, nakedJumpCheck, loneSymbolCheck, noVoidLocalsCheck]
 
 exprChecks :: [Check (Expr Typechecked)]
-exprChecks = [divisionByZeroCheck, lValCheck]
+exprChecks = [divisionByZeroCheck, lValCheck, assignableTypeCheck]
 
 recursiveStructCheck :: Check (Program Typechecked)
 recursiveStructCheck (Program decls) = do
@@ -108,7 +108,7 @@ divisionByZeroCheck (BinaryExpr DIV _ (IntLiteral 0 _) _) = tell ["Literal divis
 divisionByZeroCheck (BinaryExpr DIV _ (FloatLiteral 0.0 _) _) = tell ["Literal division by zero."]
 divisionByZeroCheck _ = return ()
 
-lValCheck :: Check(Expr Typechecked)
+lValCheck :: Check (Expr Typechecked)
 lValCheck asgn@(BinaryExpr ASSIGN leftExpr _ _) = if isLVal leftExpr then return () else tell ["Invalid l-value in assignment " <> pretty 0 asgn]
     where
         isLVal :: Expr Typechecked -> Bool
@@ -117,6 +117,10 @@ lValCheck asgn@(BinaryExpr ASSIGN leftExpr _ _) = if isLVal leftExpr then return
         isLVal (StructDeref {}) = True
         isLVal _ = False
 lValCheck _ = return ()
+
+assignableTypeCheck :: Check (Expr Typechecked)
+assignableTypeCheck asgn@(BinaryExpr ASSIGN _ _ (ArrayType _ _)) = tell ["Attempted to assign array in assignment " <> pretty 0 asgn]
+assignableTypeCheck _ = return ()
 
 
 
