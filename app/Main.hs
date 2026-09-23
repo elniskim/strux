@@ -6,6 +6,7 @@ import Resolver (resolveStrux)
 import Typechecker (typecheckStrux)
 import Pretty (pretty)
 import BeNice (checkStrux)
+import QBELowerer (lowerStrux)
 import qualified Data.Text.IO as TIO
 import qualified Data.Text as T
 
@@ -32,3 +33,8 @@ main = do
     case maybeTypechecked of
         Just (pgrm, _) -> TIO.putStrLn $ T.intercalate "\n" (checkStrux pgrm)
         Nothing -> putStrLn "vas...? pt. 2"
+    case maybeTypechecked of 
+        Just (pgrm, _) -> do
+            let _ = lowerStrux pgrm
+            putStrLn "NO ERROR BAYBEE"
+        Nothing -> putStrLn "vas...? pt. 3" 

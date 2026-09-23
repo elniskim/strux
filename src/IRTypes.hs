@@ -60,9 +60,7 @@ data Block
         condLabel :: Label,
         condInsts :: [Instruction],
         condResult :: Operand,
-        thenLabel :: Label,
         thenBody :: [Block],
-        elseLabel :: Label,
         elseBody :: [Block],
         mergeLabel :: Label
     }

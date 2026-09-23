@@ -83,15 +83,13 @@ lowerChunk (StdChunk stmts chunkTerm) = do
     return $ SimpleBlock (BasicBlock bLabel (bStmts ++ termInsts) term)
 lowerChunk (BranchChunk ifCond tBlock fBlock) = do
     cLabel <- getNextLabel
-    tLabel <- getNextLabel
-    fLabel <- getNextLabel
     mLabel <- getNextLabel
     (cReg, cInsts) <- lowerExpr ifCond
     let tChunks = chunkStmts tBlock
     let fChunks = chunkStmts fBlock
     tBlocks <- local (\inEnv -> inEnv {falloffTarget = mLabel}) (mapM lowerChunk tChunks)
     fBlocks <- local (\inEnv -> inEnv {falloffTarget = mLabel}) (mapM lowerChunk fChunks)
-    return $ IfElseBlock cLabel cInsts cReg tLabel tBlocks fLabel fBlocks mLabel
+    return $ IfElseBlock cLabel cInsts cReg tBlocks fBlocks mLabel
 lowerChunk (LoopChunk lInit lCond lIncr lBody) = do
     iLabel <- getNextLabel
     hLabel <- getNextLabel
@@ -179,7 +177,7 @@ lowerExpr (FunctionCall fName fArgs (FuncType (StructType retTypeName) _)) = do
     retValTemp <- getStructTemp (sizeMap M.! retTypeName)
     let argIR = zip (map (convertType . getExprType) fArgs) argRegs
     return (retValTemp, argInsts ++ [Call Nothing fName ((Long, retValTemp) : argIR)])
-lowerExpr (FunctionCall fName fArgs (FuncType retType _)) = do 
+lowerExpr (FunctionCall fName fArgs (FuncType retType _)) = do
     loweredArgs <- mapM lowerExpr fArgs
     let argRegs = map fst loweredArgs
     let argInsts = concatMap snd loweredArgs
@@ -187,7 +185,7 @@ lowerExpr (FunctionCall fName fArgs (FuncType retType _)) = do
     let argIR = zip (map (convertType . getExprType) fArgs) argRegs
     return (Reg tempReg, argInsts ++ [Call (Just (fName, convertType retType)) fName argIR])
 lowerExpr (FunctionCall {}) = error "lowerExpr: cannot lower function without FuncType"
-lowerExpr (ArrayIndex arrExpr idxExpr (ArrayType _ baseType)) = do 
+lowerExpr (ArrayIndex arrExpr idxExpr (ArrayType _ baseType)) = do
     sizeMap <- asks structSizeMap
     let stepSize = getTypeSize baseType sizeMap
     (arrReg, arrInsts) <- lowerExpr arrExpr
@@ -205,17 +203,17 @@ lowerExpr (StructDeref sExpr fName _) = do -- We don't blit here, we want to mod
     return (Reg tempReg, structInsts ++ [BinInstr IRTypes.ADD Long tempReg structReg (LitInt offset)])
 lowerExpr (Symbol sName sInfo)
     | isPointer $ symType sInfo = return (Reg $ ".s_" <> (T.pack . show. symType) sInfo, [])
-    | otherwise = do 
+    | otherwise = do
         tempReg <- getNextIdent
         return (Reg tempReg, [Load ((convertType . symType) sInfo) tempReg (if symKind sInfo == GlobalVar then Global sName else Reg $ ".s_" <> (T.pack . show . symId) sInfo)])
 lowerExpr (IntLiteral num _) = return (LitInt num, [])
 lowerExpr (FloatLiteral num _) = return (LitFloat num, [])
 lowerExpr (BoolLiteral bVal _) = return (if bVal then LitInt 1 else LitInt 0, [])
 lowerExpr (CharLiteral char _) = return (LitInt $ ord char, [])
-lowerExpr (StringLiteral stringVal _) = do 
+lowerExpr (StringLiteral stringVal _) = do
     strMap <- gets stringLiteralMap
-    case M.lookup stringVal strMap of 
-        Nothing -> do 
+    case M.lookup stringVal strMap of
+        Nothing -> do
             litStrNum <- getNextLitString
             let litStrName = ".litStr_" <> litStrNum
             let newStrMap = M.insert stringVal litStrName strMap
@@ -254,7 +252,41 @@ getStructTemp sSize = do
 
 
 linearize :: [Block] -> [BasicBlock Linear]
-linearize = error "unimplemented"
+linearize blocks = let treeBlocks = concatMap firstPass blocks in secondPass treeBlocks
+    where
+        firstPass :: Block -> [BasicBlock Tree]
+        firstPass (SimpleBlock basicBlock) = [basicBlock]
+        firstPass (IfElseBlock cLabel cInsts cReg tBlocks fBlocks mLabel) = let
+            tLin = concatMap firstPass tBlocks
+            fLin = concatMap firstPass fBlocks
+            tLabel = diveForLabel tLin mLabel
+            fLabel = diveForLabel fLin mLabel
+            in [BasicBlock cLabel cInsts (JumpNZ cReg tLabel fLabel)] ++ tLin ++ fLin ++ [BasicBlock mLabel [] (Next ())]
+        firstPass (LoopBlock initLabel initInsts cInsts cReg hLabel lBody latchLabel incrInsts eLabel) = let
+            lLin = concatMap firstPass lBody
+            loopLabel = diveForLabel lLin eLabel
+            in [BasicBlock initLabel initInsts (Jump hLabel),
+            BasicBlock hLabel cInsts (JumpNZ cReg loopLabel eLabel)] ++
+            lLin ++
+            [BasicBlock latchLabel incrInsts (Jump hLabel), BasicBlock eLabel [] (Next ())]
+
+
+        secondPass :: [BasicBlock Tree] -> [BasicBlock Linear]
+        secondPass [] = []
+        secondPass [BasicBlock _ _ (Next _)] = []
+        secondPass (curr@(BasicBlock _ _ (Next _)) : rest@((BasicBlock nextTarget _ _) : _)) = curr { terminator = Jump nextTarget } : secondPass rest
+        secondPass ((BasicBlock label insts term) : rest) = BasicBlock label insts (clipTerm term) : secondPass rest
+
+        diveForLabel :: [BasicBlock a] -> Label -> Label
+        diveForLabel [] fallback = fallback
+        diveForLabel ((BasicBlock {blockLabel = label}) : _) _ = label
+
+        clipTerm :: Terminator Tree -> Terminator Linear
+        clipTerm (Jump label) = Jump label
+        clipTerm (JumpNZ reg t1 t2) = JumpNZ reg t1 t2
+        clipTerm (Return retVal) = Return retVal
+        clipTerm (Next _) = error "clipTerm: no nexts can be present in the linearized block list"
+
 
 isPointer :: Type -> Bool
 isPointer (StructType {}) = True
@@ -287,7 +319,7 @@ getNextLabel = do
     modify (\inState -> inState {nextLabel = i + 1})
     return $ (T.pack . show) i
 
-getNextLitString :: QBEM T.Text 
+getNextLitString :: QBEM T.Text
 getNextLitString = do
     i <- gets nextLitString
     modify (\inState -> inState {nextLitString = i + 1})
