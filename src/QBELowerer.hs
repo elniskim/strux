@@ -49,11 +49,15 @@ lowerProgram (Program decls) = do
     loweredDecls <- local (\inEnv -> inEnv {structOffsetMap = struxOffset, structSizeMap = struxSize}) (mapM lowerDecl decls)
     strMap <- gets stringLiteralMap
     let strDecls = generateLiteralStrings strMap
-    return $ mconcat loweredDecls
+    return $ mconcat (loweredDecls ++ strDecls)
 
 lowerDecl :: Decl Typechecked -> QBEM QBEIR
-lowerDecl (GlobalArrDecl vName aType@(ArrayType {})) = return $ QBEIR [] [] [QBEArrDecl vName (convertType $ exposeArrType aType) (getExtent aType)]
-lowerDecl (GlobalVarDecl vName vType) = return $ QBEIR [] [] [QBEVarDecl vName (convertType vType)]
+lowerDecl (GlobalArrDecl vName aType@(ArrayType {})) = do 
+    sizeMap <- asks structSizeMap
+    return $ QBEIR [] [] [QBEGlobalDecl vName (getTypeSize aType sizeMap)]
+lowerDecl (GlobalVarDecl vName vType) = do 
+    sizeMap <- asks structSizeMap
+    return $ QBEIR [] [] [QBEGlobalDecl vName (getTypeSize vType sizeMap)]
 lowerDecl (StructDef name attrs) = let
     attrTypes = [createFieldIR attr | attr <- attrs ]
     in return $ QBEIR [] [QBEStruct name attrTypes] []

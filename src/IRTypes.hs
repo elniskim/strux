@@ -75,9 +75,11 @@ data Block
         exitLabel :: Label
     }
 
+type DeclSize = Int
+
 data QBEFunc = QBEFunc T.Text (Maybe QBEType) [(Ident, QBEType)] [BasicBlock Linear]
 data QBEStruct = QBEStruct T.Text [(QBEType, Int)]
-data QBEDecl = QBEVarDecl T.Text QBEType | QBEArrDecl T.Text QBEType Int | QBEStrDecl T.Text Ident
+data QBEDecl = QBEGlobalDecl T.Text DeclSize | QBEStrDecl T.Text Ident
 
 data QBEIR = QBEIR {
     funcIRs :: [QBEFunc],
