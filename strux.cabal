@@ -61,7 +61,7 @@ executable strux
     main-is:          Main.hs
 
     -- Modules included in this executable, other than Main.
-    other-modules: Lexer, Parser, AST, Pretty, Resolver, Typechecker, BeNice, QBELowerer, IRTypes
+    other-modules: Lexer, Parser, AST, Pretty, Resolver, Typechecker, BeNice, QBELowerer, IRTypes, Codegen, Runtime
 
     -- LANGUAGE extensions used by modules in this package.
     -- other-extensions:

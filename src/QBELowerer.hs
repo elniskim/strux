@@ -252,6 +252,7 @@ getStructTemp sSize = do
 
 
 linearize :: [Block] -> [BasicBlock Linear]
+linearize [] = []
 linearize blocks = let treeBlocks = concatMap firstPass blocks in secondPass treeBlocks
     where
         firstPass :: Block -> [BasicBlock Tree]
@@ -402,14 +403,15 @@ data ChunkTerm
     | NextTerm
 
 chunkStmts :: [Stmt Typechecked] -> [StmtChunk]
-chunkStmts [] = []
+chunkStmts [] = [] -- Don't need any special checking, functions cannot be empty because we require return statements, and the parser injects a void return in functions that need it.
 chunkStmts stmts@(s : ss)
     | isSpecialChunk s = wrapSpecial s : chunkStmts ss
     | otherwise = let (newChunk, rest) = break isTerminator stmts
                   in case L.uncons rest of
-                    Just (ContinueStmt, remaining) -> StdChunk newChunk ContinueTerm : chunkStmts remaining
-                    Just (BreakStmt, remaining) -> StdChunk newChunk BreakTerm : chunkStmts remaining
-                    Just (ReturnStmt retExpr, remaining) -> StdChunk newChunk (RetTerm retExpr) : chunkStmts remaining
+                    -- Don't need to process rest of statement block, as a terminator will make all proceeding code dead. (?)
+                    Just (ContinueStmt, _) -> [StdChunk newChunk ContinueTerm] -- : chunkStmts remaining
+                    Just (BreakStmt, _) -> [StdChunk newChunk BreakTerm] -- : chunkStmts remaining
+                    Just (ReturnStmt retExpr, _) -> [StdChunk newChunk (RetTerm retExpr)] -- : chunkStmts remaining
                     Nothing -> [StdChunk newChunk FalloffTerm] -- We don't need to know why. Because functions will have a return statement by this point (parser injects returns at the end of void functions), this falloff will have meaning.
                     _ -> StdChunk newChunk NextTerm : chunkStmts rest -- This means the next statement is a special statement.
 
@@ -470,7 +472,7 @@ convertBinOp COMPGE _ = IRTypes.SGE
 convertBinOp COMPLT FloatType = IRTypes.LT
 convertBinOp COMPLT _ = IRTypes.SLT
 convertBinOp COMPLE FloatType = IRTypes.LE
-convertBinOp COMPLE _ = IRTypes.LE
+convertBinOp COMPLE _ = IRTypes.SLE
 convertBinOp COMPEQ _ = IRTypes.EQ
 convertBinOp COMPNEQ _ = IRTypes.NE
 convertBinOp AST.ADD _ = IRTypes.ADD

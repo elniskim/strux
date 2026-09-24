@@ -38,7 +38,6 @@ data Instruction
   | Store QBEType Operand Operand  -- value operand, address operand
   | Load QBEType Ident Operand     -- destination reg, address operand
   | Alloc Ident Int                -- %dest =l alloc8 size
-  | Copy Ident QBEType Operand     -- %dest =ty copy %src
   | Blit Operand Operand Int       
   deriving (Show, Eq)
 
