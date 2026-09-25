@@ -147,6 +147,7 @@ lowerStmt stmt
     | isSpecialChunk stmt = error "lowerStmt: special chunk leaked into standard block"
     | otherwise = error "lowerStmt: terminator leaked into standard block"
 
+-- I lower L-Values wrong, that's next on the to-do list.
 lowerExpr ::  Expr Typechecked -> QBEM (Operand, [Instruction])
 lowerExpr (BinaryExpr ASSIGN lVal rVal (StructType sName)) = do -- BeNice ensured that we aren't trying to assign arrays.
     (lValReg, lValInsts) <- lowerExpr lVal
@@ -173,7 +174,7 @@ lowerExpr (UnaryExpr UNARYNOT rVal eType) = do
     tempReg <- getNextIdent
     return (Reg tempReg, rValInsts ++ [UnInstr NEG (convertType eType) tempReg rValReg])
 lowerExpr(UnaryExpr {}) = error "lowerExpr: invalid unary operation provided"
-lowerExpr (FunctionCall fName fArgs (FuncType (StructType retTypeName) _)) = do
+lowerExpr (FunctionCall fName fArgs (StructType retTypeName)) = do
     loweredArgs <- mapM lowerExpr fArgs
     let argRegs = map fst loweredArgs
     let argInsts = concatMap snd loweredArgs
@@ -181,14 +182,14 @@ lowerExpr (FunctionCall fName fArgs (FuncType (StructType retTypeName) _)) = do
     retValTemp <- getStructTemp (sizeMap M.! retTypeName)
     let argIR = zip (map (convertType . getExprType) fArgs) argRegs
     return (retValTemp, argInsts ++ [Call Nothing fName ((Long, retValTemp) : argIR)])
-lowerExpr (FunctionCall fName fArgs (FuncType retType _)) = do
+lowerExpr (FunctionCall fName fArgs retType) = do
     loweredArgs <- mapM lowerExpr fArgs
     let argRegs = map fst loweredArgs
     let argInsts = concatMap snd loweredArgs
     tempReg <- getNextIdent
     let argIR = zip (map (convertType . getExprType) fArgs) argRegs
-    return (Reg tempReg, argInsts ++ [Call (Just (fName, convertType retType)) fName argIR])
-lowerExpr (FunctionCall {}) = error "lowerExpr: cannot lower function without FuncType"
+    let loweredReturn = if retType /= VoidType then Just (fName, convertType retType) else Nothing
+    return (Reg tempReg, argInsts ++ [Call loweredReturn fName argIR])
 lowerExpr (ArrayIndex arrExpr idxExpr (ArrayType _ baseType)) = do
     sizeMap <- asks structSizeMap
     let stepSize = getTypeSize baseType sizeMap

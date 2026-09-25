@@ -42,4 +42,5 @@ main = do
         Nothing -> do 
             putStrLn "vas...? pt. 3" 
             error ""
+    TIO.writeFile "golden/lowered.qbe" (outputStrux pgrmIR)
     return ()

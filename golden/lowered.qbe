@@ -1,0 +1,11 @@
+function  $main() {
+@1
+	%.s_0 =l alloc8 8
+	jmp @2
+@2
+	%1 =l loadl %.s_0
+	storel 5, %1
+	%2 =l loadl %.s_0
+	call $printInt(l %2)
+	ret 
+}

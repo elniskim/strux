@@ -1,42 +1,14 @@
-# Testing structs inside structs.
-
-struct Bird {
-    beak: int;
-    wing: int;
-}
-
-struct Nest {
-    bird: Bird;
-    twig: float;
-}
+# Testing assigning and outputting local variables
 
 def main() -> void {
-    nest: Nest;
-
-    nest->twig = 7.884;
-    nest->bird->beak = 5;
-    nest->bird->wing = 10;
-
-    printInt(nest->bird->beak);
-    printInt(nest->bird->wing);
+    local: int;
+    local = 5;
+    printInt(local);
 }
 -----
-struct Bird {
-	beak: int;
-	wing: int;
-}
-
-struct Nest {
-	bird: Bird;
-	twig: float;
-}
-
 def main() -> void {
-	nest: Nest;
-	((nest->twig) = 7.884);
-	(((nest->bird)->beak) = 5);
-	(((nest->bird)->wing) = 10);
-	(printInt(((nest->bird)->beak)));
-	(printInt(((nest->bird)->wing)));
+	local: int;
+	(local = 5);
+	(printInt(local));
 	return;
 }
