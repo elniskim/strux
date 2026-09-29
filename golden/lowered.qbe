@@ -1,0 +1,42 @@
+export function  $main() {
+@.block_1
+	%.s_0 =l alloc8 40
+	jmp @.block_2
+@.block_2
+	%.temp_1 =l mul 8 ,0
+	%.temp_2 =l add %.s_0 ,%.temp_1
+	storel 0, %.temp_2
+	%.temp_3 =l mul 8 ,1
+	%.temp_4 =l add %.s_0 ,%.temp_3
+	storel 1, %.temp_4
+	%.temp_5 =l mul 8 ,2
+	%.temp_6 =l add %.s_0 ,%.temp_5
+	storel 2, %.temp_6
+	%.temp_7 =l mul 8 ,3
+	%.temp_8 =l add %.s_0 ,%.temp_7
+	storel 3, %.temp_8
+	%.temp_9 =l mul 8 ,4
+	%.temp_10 =l add %.s_0 ,%.temp_9
+	storel 4, %.temp_10
+	%.temp_11 =l mul 8 ,0
+	%.temp_12 =l add %.s_0 ,%.temp_11
+	%.temp_13 =l loadl %.temp_12
+	call $printInt(l %.temp_13)
+	%.temp_15 =l mul 8 ,1
+	%.temp_16 =l add %.s_0 ,%.temp_15
+	%.temp_17 =l loadl %.temp_16
+	call $printInt(l %.temp_17)
+	%.temp_19 =l mul 8 ,2
+	%.temp_20 =l add %.s_0 ,%.temp_19
+	%.temp_21 =l loadl %.temp_20
+	call $printInt(l %.temp_21)
+	%.temp_23 =l mul 8 ,3
+	%.temp_24 =l add %.s_0 ,%.temp_23
+	%.temp_25 =l loadl %.temp_24
+	call $printInt(l %.temp_25)
+	%.temp_27 =l mul 8 ,4
+	%.temp_28 =l add %.s_0 ,%.temp_27
+	%.temp_29 =l loadl %.temp_28
+	call $printInt(l %.temp_29)
+	ret 
+}

@@ -11,7 +11,6 @@ import qualified Data.List as L
 import qualified Data.Map as M
 import qualified Data.Text as T
 import Data.Char (ord)
-import Pretty (Pretty(pretty))
 
 type SymbolTable = M.Map T.Text Ident -- Maps from symbol name to SSA target name
 
@@ -190,7 +189,7 @@ lowerExpr (FunctionCall fName fArgs retType) = do
     let argIR = zip (map (convertType . getExprType) fArgs) argRegs
     let loweredReturn = if retType /= VoidType then Just (tempReg, convertType retType) else Nothing
     return (Reg tempReg, argInsts ++ [Call loweredReturn fName argIR])
-lowerExpr (ArrayIndex arrExpr idxExpr (ArrayType _ baseType)) = do
+lowerExpr (ArrayIndex arrExpr idxExpr baseType) = do
     sizeMap <- asks structSizeMap
     let stepSize = getTypeSize baseType sizeMap
     (arrReg, arrInsts) <- lowerExpr arrExpr
@@ -202,7 +201,6 @@ lowerExpr (ArrayIndex arrExpr idxExpr (ArrayType _ baseType)) = do
         else do 
             retReg <- getNextIdent
             return (Reg retReg, arrInsts ++ idxInsts ++ [BinInstr MUL Long offsetReg (LitInt stepSize) idxReg, BinInstr IRTypes.ADD Long finReg arrReg (Reg offsetReg), Load (convertType baseType) retReg (Reg finReg)])
-lowerExpr badIndex@(ArrayIndex {}) = error $ "lowerExpr: cannot index array with non-array type\n" <> T.unpack (pretty 0 badIndex)
 lowerExpr (StructDeref sExpr fName dType) = do -- We don't blit here, we want to modify the original struct. That's half the point!
     offsetMap <- asks structOffsetMap
     let sName = getStructName $ getExprType sExpr
@@ -237,7 +235,7 @@ lowerExpr (GroupedExpression expr _) = lowerExpr expr
 
 lowerLVal :: Expr Typechecked -> QBEM (Operand, [Instruction])
 lowerLVal (Symbol sName sInfo) = if symKind sInfo == GlobalVar then return (Global sName, []) else return (Reg $ ".s_" <> (T.pack . show .symId) sInfo, [])
-lowerLVal (ArrayIndex arrExpr idxExpr (ArrayType _ baseType)) = do 
+lowerLVal (ArrayIndex arrExpr idxExpr baseType) = do 
     sizeMap <- asks structSizeMap
     let stepSize = getTypeSize baseType sizeMap
     (arrReg, arrInsts) <- lowerExpr arrExpr
@@ -245,7 +243,6 @@ lowerLVal (ArrayIndex arrExpr idxExpr (ArrayType _ baseType)) = do
     offsetReg <- getNextIdent
     finReg <- getNextIdent
     return (Reg finReg, arrInsts ++ idxInsts ++ [BinInstr MUL Long offsetReg (LitInt stepSize) idxReg, BinInstr IRTypes.ADD Long finReg arrReg (Reg offsetReg)])
-lowerLVal (ArrayIndex {}) = error "lowerLVal: cannot index array with non-array type"
 lowerLVal (StructDeref sExpr fName _) = do 
     offsetMap <- asks structOffsetMap
     let sName = getStructName $ getExprType sExpr
