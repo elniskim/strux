@@ -1,17 +1,20 @@
 #include <stdio.h>
 #include <stdint.h>
-#include <stdfloat.h>
+
+#ifdef __cplusplus 
+extern "C" {
+#endif
 
 void printInt (int64_t i) {
     printf("%ld", i);
 }
 
-void printFloat (float64_t d) {
+void printFloat (double d) {
     printf("%f", d);
 }
 
 void printBool (int64_t b) {
-    puts(b : "True" ? "False");
+    puts(b ? "True" : "False");
 }
 
 void printChar (int64_t c) {
@@ -20,7 +23,11 @@ void printChar (int64_t c) {
 
 void printStr (uint64_t *s) { 
     while (*s != 0) {
-        putchar((char)*str);
+        putchar((char)*s);
         s++;
     }
 }
+
+#ifdef __cplusplus
+}
+#endif

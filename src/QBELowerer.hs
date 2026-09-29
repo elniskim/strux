@@ -6,12 +6,12 @@ module QBELowerer where
 
 import AST
 import IRTypes
-import Control.Monad
 import Control.Monad.RWS
 import qualified Data.List as L
 import qualified Data.Map as M
 import qualified Data.Text as T
 import Data.Char (ord)
+import Pretty (Pretty(pretty))
 
 type SymbolTable = M.Map T.Text Ident -- Maps from symbol name to SSA target name
 
@@ -150,13 +150,13 @@ lowerStmt stmt
 -- I lower L-Values wrong, that's next on the to-do list.
 lowerExpr ::  Expr Typechecked -> QBEM (Operand, [Instruction])
 lowerExpr (BinaryExpr ASSIGN lVal rVal (StructType sName)) = do -- BeNice ensured that we aren't trying to assign arrays.
-    (lValReg, lValInsts) <- lowerExpr lVal
+    (lValReg, lValInsts) <- lowerLVal lVal
     (rValReg, rValInsts) <- lowerExpr rVal
     sizeMap <- asks structSizeMap
     let copySize = sizeMap M.! sName
     return (rValReg, lValInsts ++ rValInsts ++ [Blit rValReg lValReg copySize])
 lowerExpr (BinaryExpr ASSIGN lVal rVal aType) = do
-    (lValReg, lValInsts) <- lowerExpr lVal
+    (lValReg, lValInsts) <- lowerLVal lVal
     (rValReg, rValInsts) <- lowerExpr rVal
     return (rValReg, lValInsts ++ rValInsts ++ [Store (convertType aType) rValReg lValReg])
 lowerExpr (BinaryExpr binOp lVal rVal eType) = do
@@ -172,7 +172,7 @@ lowerExpr (UnaryExpr AST.SUB rVal eType) = do
 lowerExpr (UnaryExpr UNARYNOT rVal eType) = do
     (rValReg, rValInsts) <- lowerExpr rVal
     tempReg <- getNextIdent
-    return (Reg tempReg, rValInsts ++ [UnInstr NEG (convertType eType) tempReg rValReg])
+    return (Reg tempReg, rValInsts ++ [BinInstr CEQ (convertType eType) tempReg rValReg (LitInt 0)])
 lowerExpr(UnaryExpr {}) = error "lowerExpr: invalid unary operation provided"
 lowerExpr (FunctionCall fName fArgs (StructType retTypeName)) = do
     loweredArgs <- mapM lowerExpr fArgs
@@ -188,7 +188,7 @@ lowerExpr (FunctionCall fName fArgs retType) = do
     let argInsts = concatMap snd loweredArgs
     tempReg <- getNextIdent
     let argIR = zip (map (convertType . getExprType) fArgs) argRegs
-    let loweredReturn = if retType /= VoidType then Just (fName, convertType retType) else Nothing
+    let loweredReturn = if retType /= VoidType then Just (tempReg, convertType retType) else Nothing
     return (Reg tempReg, argInsts ++ [Call loweredReturn fName argIR])
 lowerExpr (ArrayIndex arrExpr idxExpr (ArrayType _ baseType)) = do
     sizeMap <- asks structSizeMap
@@ -197,17 +197,25 @@ lowerExpr (ArrayIndex arrExpr idxExpr (ArrayType _ baseType)) = do
     (idxReg, idxInsts) <- lowerExpr idxExpr
     offsetReg <- getNextIdent
     finReg <- getNextIdent
-    return (Reg finReg, arrInsts ++ idxInsts ++ [BinInstr MUL Long offsetReg (LitInt stepSize) idxReg, BinInstr IRTypes.ADD Long finReg arrReg (Reg offsetReg)])
-lowerExpr (ArrayIndex {}) = error "lowerExpr: cannot index array with non-array type"
-lowerExpr (StructDeref sExpr fName _) = do -- We don't blit here, we want to modify the original struct. That's half the point!
+    if isPointer baseType
+        then return (Reg finReg, arrInsts ++ idxInsts ++ [BinInstr MUL Long offsetReg (LitInt stepSize) idxReg, BinInstr IRTypes.ADD Long finReg arrReg (Reg offsetReg)])
+        else do 
+            retReg <- getNextIdent
+            return (Reg retReg, arrInsts ++ idxInsts ++ [BinInstr MUL Long offsetReg (LitInt stepSize) idxReg, BinInstr IRTypes.ADD Long finReg arrReg (Reg offsetReg), Load (convertType baseType) retReg (Reg finReg)])
+lowerExpr badIndex@(ArrayIndex {}) = error $ "lowerExpr: cannot index array with non-array type\n" <> T.unpack (pretty 0 badIndex)
+lowerExpr (StructDeref sExpr fName dType) = do -- We don't blit here, we want to modify the original struct. That's half the point!
     offsetMap <- asks structOffsetMap
     let sName = getStructName $ getExprType sExpr
     let offset = offsetMap M.! (sName, fName)
-    (structReg, structInsts)<- lowerExpr sExpr
+    (structReg, structInsts) <- lowerExpr sExpr
     tempReg <- getNextIdent
-    return (Reg tempReg, structInsts ++ [BinInstr IRTypes.ADD Long tempReg structReg (LitInt offset)])
+    if isPointer dType
+        then return (Reg tempReg, structInsts ++ [BinInstr IRTypes.ADD Long tempReg structReg (LitInt offset)])
+        else do 
+            finReg <- getNextIdent 
+            return (Reg finReg, structInsts ++ [BinInstr IRTypes.ADD Long tempReg structReg (LitInt offset), Load (convertType dType) finReg (Reg tempReg)])
 lowerExpr (Symbol sName sInfo)
-    | isPointer $ symType sInfo = return (Reg $ ".s_" <> (T.pack . show. symType) sInfo, [])
+    | isPointer $ symType sInfo = if symKind sInfo == GlobalVar then return (Global sName, []) else return (Reg $ ".s_" <> (T.pack . show .symId) sInfo, [])
     | otherwise = do
         tempReg <- getNextIdent
         return (Reg tempReg, [Load ((convertType . symType) sInfo) tempReg (if symKind sInfo == GlobalVar then Global sName else Reg $ ".s_" <> (T.pack . show . symId) sInfo)])
@@ -225,15 +233,34 @@ lowerExpr (StringLiteral stringVal _) = do
             modify (\inState -> inState {stringLiteralMap = newStrMap})
             return (Global litStrName, [])
         Just litStrName -> return (Global litStrName, [])
-
-
 lowerExpr (GroupedExpression expr _) = lowerExpr expr
+
+lowerLVal :: Expr Typechecked -> QBEM (Operand, [Instruction])
+lowerLVal (Symbol sName sInfo) = if symKind sInfo == GlobalVar then return (Global sName, []) else return (Reg $ ".s_" <> (T.pack . show .symId) sInfo, [])
+lowerLVal (ArrayIndex arrExpr idxExpr (ArrayType _ baseType)) = do 
+    sizeMap <- asks structSizeMap
+    let stepSize = getTypeSize baseType sizeMap
+    (arrReg, arrInsts) <- lowerExpr arrExpr
+    (idxReg, idxInsts) <- lowerExpr idxExpr
+    offsetReg <- getNextIdent
+    finReg <- getNextIdent
+    return (Reg finReg, arrInsts ++ idxInsts ++ [BinInstr MUL Long offsetReg (LitInt stepSize) idxReg, BinInstr IRTypes.ADD Long finReg arrReg (Reg offsetReg)])
+lowerLVal (ArrayIndex {}) = error "lowerLVal: cannot index array with non-array type"
+lowerLVal (StructDeref sExpr fName _) = do 
+    offsetMap <- asks structOffsetMap
+    let sName = getStructName $ getExprType sExpr
+    let offset = offsetMap M.! (sName, fName)
+    (structReg, structInsts) <- lowerExpr sExpr
+    tempReg <- getNextIdent 
+    return (Reg tempReg, structInsts ++ [BinInstr IRTypes.ADD Long tempReg structReg (LitInt offset)])
+lowerLVal _ = error "lowerLVal: illegal lvalue type being lowered as an lval. benice should make this impossible"
+
 
 lowerArgLoad :: Argument Typechecked -> [Instruction]
 lowerArgLoad arg
     | isPointer $ argType arg = []
     | otherwise = let
-        regName = ".s_" <> (T.pack . show . argName) arg
+        regName = ".s_" <> (T.pack . show . argId) arg
         allocInst = Alloc regName 8
         storeInst = Store (convertType $ argType arg) (Reg $ argName arg) (Reg regName)
         in [allocInst, storeInst]
@@ -317,13 +344,13 @@ getNextIdent :: QBEM Ident
 getNextIdent = do
     i <- gets nextIdent
     modify (\inState -> inState {nextIdent = i + 1})
-    return $ (T.pack . show) i
+    return $ ".temp_" <> (T.pack . show) i
 
 getNextLabel :: QBEM Label
 getNextLabel = do
     i <- gets nextLabel
     modify (\inState -> inState {nextLabel = i + 1})
-    return $ (T.pack . show) i
+    return $ ".block_" <> (T.pack . show) i
 
 getNextLitString :: QBEM T.Text
 getNextLitString = do

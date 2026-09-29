@@ -6,6 +6,7 @@ import Control.Monad.Writer
 import Data.Text as T
 import Data.Text.Lazy.Builder as B
 import qualified Data.Text.Lazy as TL
+import Data.Char (ord)
 
 type CodegenM = Writer B.Builder ()
 
@@ -25,14 +26,14 @@ outputStruct (QBEStruct name contents) = do
 
 outputDecl :: QBEDecl -> CodegenM
 outputDecl (QBEStrDecl stringVal name) = do
-    let strContents = T.pack $ Prelude.unwords (fmap (\c -> '\'' : c : ['\'']) (T.unpack stringVal))
-    tellDeclaration $ "data $" <> name <> " = { l " <> strContents <> " 0 }"
+    let strContents = T.pack $ Prelude.unwords (fmap (\c -> "l " ++ (show . ord) c ++ ",") (T.unpack stringVal))
+    tellDeclaration $ "data $" <> name <> " = { " <> strContents <> " l 0 }"
 outputDecl (QBEGlobalDecl name declSize) = tellDeclaration $ "data $" <> name <> " = align 8 { z " <> (T.pack . show) declSize <> " }"
 
 outputFunc :: QBEFunc -> CodegenM
 outputFunc (QBEFunc funcName retType funcArgs fBody) = do
     let sigArgs = T.intercalate ", " $ fmap (\(ident, qType) -> typeText qType <> " %" <> ident) funcArgs
-    let funcSig = "function " <> maybe " " (\t -> " " <> typeText t <> " ") retType <> "$" <> funcName <> "(" <> sigArgs <> ") {"
+    let funcSig = "export function " <> maybe " " (\t -> " " <> typeText t <> " ") retType <> "$" <> funcName <> "(" <> sigArgs <> ") {"
     tellTopLevel funcSig
     mapM_ outputBlock fBody
     tellTopLevel "}"
@@ -99,7 +100,7 @@ opText ADD = "add"
 opText SUB = "sub"
 opText MUL = "mul"
 opText DIV = "div"
-opText NEG = "neg"
+opText CEQ = "ceql" -- ceq only used for booleans, don't need to worry abt doubles showing up
 opText OR = "or"
 opText AND = "and"
 opText REM = "rem"

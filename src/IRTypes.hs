@@ -18,7 +18,7 @@ data QBEType = Word | Long | Single | Double | Aggregate T.Text deriving (Show, 
 
 data QBEOp 
     = SGT | GT | SGE | GE | SLT | LT | SLE | LE | EQ | 
-    NE | ADD | SUB | MUL | DIV | NEG | OR | AND | REM
+    NE | ADD | SUB | MUL | DIV | CEQ | OR | AND | REM
     deriving (Show, Eq)
 
 type Label = T.Text
